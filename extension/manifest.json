@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "AudioLayer",
+  "version": "0.1.0",
+  "description": "The voice layer for the internet",
+  "permissions": ["storage", "activeTab", "tabs"],
+  "host_permissions": [
+    "<all_urls>",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AudioLayer"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

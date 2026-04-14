@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AudioLayer</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="topbar">
+        <div class="brand-mark">SL</div>
+        <div>
+          <div class="brand-name">AudioLayer</div>
+          <div class="brand-tag">The voice layer for the internet</div>
+        </div>
+      </header>
+
+      <section class="meta-card">
+        <div class="meta-row">
+          <span class="label">Detected page</span>
+          <span class="pill" id="pageType">Waiting</span>
+        </div>
+        <h1 id="title">Loading the active page…</h1>
+        <div class="stats">
+          <div class="stat">
+            <span class="label">Confidence</span>
+            <strong id="confidence">--</strong>
+          </div>
+          <div class="stat">
+            <span class="label">Cleaned chars</span>
+            <strong id="charCount">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <div class="button-grid">
+        <button id="briefBtn">Brief me</button>
+        <button id="readBtn" class="secondary">Read it</button>
+        <button id="podcastBtn" class="secondary">Podcast mode</button>
+      </div>
+
+      <div id="status" class="status">Inspecting the current tab.</div>
+
+      <section class="audio-card">
+        <audio id="player" controls class="player"></audio>
+      </section>
+
+      <details class="debug-panel">
+        <summary>Transcript and debug</summary>
+        <div class="panel-block">
+          <div class="label">Transcript</div>
+          <pre id="transcript" class="transcript">Audio output will appear here.</pre>
+        </div>
+        <div class="panel-block">
+          <div class="label">Heuristics</div>
+          <div id="reasons" class="body-copy">Classification reasons will appear here.</div>
+        </div>
+      </details>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

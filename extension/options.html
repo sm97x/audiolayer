@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AudioLayer Options</title>
+    <style>
+      body {
+        margin: 0;
+        background: #f4f1ea;
+        color: #111111;
+        font-family: "Segoe UI", sans-serif;
+      }
+
+      main {
+        max-width: 720px;
+        margin: 40px auto;
+        padding: 24px;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: 0 18px 40px rgba(17, 17, 17, 0.06);
+      }
+
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #60645f;
+      }
+
+      h1 {
+        margin: 12px 0 8px;
+        font-size: 32px;
+      }
+
+      p {
+        color: #60645f;
+        line-height: 1.7;
+      }
+
+      label {
+        display: block;
+        margin-top: 22px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      input {
+        width: 100%;
+        margin-top: 10px;
+        padding: 14px 16px;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        border-radius: 16px;
+        background: white;
+        font-size: 14px;
+      }
+
+      button {
+        margin-top: 18px;
+        border: none;
+        border-radius: 999px;
+        background: #111111;
+        color: white;
+        padding: 12px 18px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      #status {
+        margin-top: 14px;
+        color: #60645f;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <div class="eyebrow">Extension options</div>
+        <h1>AudioLayer backend</h1>
+        <p>
+          Point the extension at your local or deployed Next.js app. The default is
+          <code>http://localhost:3000</code>.
+        </p>
+
+        <label for="backendBaseUrl">Backend base URL</label>
+        <input id="backendBaseUrl" type="url" placeholder="http://localhost:3000" />
+        <button id="saveBtn" type="button">Save settings</button>
+        <div id="status"></div>
+      </section>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>
