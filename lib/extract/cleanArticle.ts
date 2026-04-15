@@ -31,7 +31,11 @@ function pushUniqueLine(target: string[], line: string | undefined): void {
 
 function isArticleMetadataLine(text: string): boolean {
   return /^(published|updated|last updated)\s*\d/i.test(text) ||
+    /^(published|updated|last updated)\s+\d{1,2}:\d{2}/i.test(text) ||
     /^(published|updated|last updated)\s+\d{1,2}\s+[a-z]+\s+\d{4}/i.test(text) ||
+    /^by\s*[A-Z][A-Za-z .,'&-]{2,160}$/i.test(text) ||
+    /^\d{1,2}:\d{2}$/.test(text) ||
+    /^(watch|media caption|image caption|video caption),?:?/i.test(text) ||
     /^[a-z]+\s+\d{1,2},?\s+\d{4}\s*,?\s*\d{1,2}:\d{2}/i.test(text) ||
     /^\d{1,2}\s+[a-z]+\s+\d{4},?\s+\d{1,2}:\d{2}/i.test(text);
 }
@@ -76,6 +80,10 @@ export function cleanArticle(payload: PagePayload): CleanedPage {
       const tagName = element.tagName.toLowerCase();
 
       if (tagName === "li") {
+        if (element.querySelector("p, h2, h3, blockquote, ul, ol")) {
+          return null;
+        }
+
         return text.length >= 20 ? `Bullet: ${text}` : null;
       }
 
