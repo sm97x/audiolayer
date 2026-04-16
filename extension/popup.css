@@ -18,7 +18,7 @@
 
 body {
   margin: 0;
-  min-width: 380px;
+  min-width: 420px;
   background:
     radial-gradient(circle at top left, rgba(97, 113, 106, 0.08), transparent 16rem),
     var(--background);
@@ -118,16 +118,16 @@ h1 {
 }
 
 button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
   border: none;
   border-radius: 999px;
   background: var(--foreground);
   color: white;
-  padding: 11px 10px;
-  font-size: 13px;
+  padding: 11px 12px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -138,23 +138,59 @@ button.secondary {
   border: 1px solid var(--border);
 }
 
+button.is-active {
+  background: var(--foreground);
+  color: white;
+  border-color: var(--foreground);
+}
+
 button:disabled {
   opacity: 0.55;
   cursor: progress;
 }
 
 .spinner {
+  position: absolute;
+  left: 12px;
+  flex: 0 0 auto;
   width: 13px;
   height: 13px;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
+  border: 0;
   border-radius: 999px;
   opacity: 0;
+}
+
+.spinner::before,
+.spinner::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.spinner::before {
+  top: 0;
+}
+
+.spinner::after {
+  bottom: 0;
+  opacity: 0.35;
 }
 
 button.is-loading .spinner {
   opacity: 1;
   animation: spin 0.75s linear infinite;
+}
+
+button span:last-child {
+  display: block;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
 }
 
 @keyframes spin {

@@ -45,7 +45,15 @@ export function HeroPreview() {
             and match the listening mode to the page.
           </div>
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full border border-white/15 bg-white/10" />
+            <div className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-white/10">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="ml-0.5 h-4 w-4 fill-white"
+              >
+                <path d="M8 5.25v13.5L18.5 12 8 5.25Z" />
+              </svg>
+            </div>
             <div className="h-2 flex-1 rounded-full bg-white/10">
               <div className="h-2 w-1/2 rounded-full bg-white" />
             </div>

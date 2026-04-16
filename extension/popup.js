@@ -32,6 +32,7 @@ const state = {
   analysis: null,
   objectUrl: null,
   loadingMode: null,
+  activeMode: null,
 };
 
 function setStatus(message) {
@@ -69,10 +70,16 @@ function renderButtons() {
 
   modeHelpers.MODES.forEach((mode) => {
     const button = buttonsByMode[mode];
-    const buttonState = modeHelpers.getButtonState(mode, state.loadingMode, hasAnalysis);
+    const buttonState = modeHelpers.getButtonState(
+      mode,
+      state.loadingMode,
+      hasAnalysis,
+      state.activeMode,
+    );
 
     button.disabled = buttonState.disabled;
     button.classList.toggle("is-loading", buttonState.isLoading);
+    button.classList.toggle("is-active", buttonState.isActive);
     button.setAttribute("aria-busy", buttonState.isLoading ? "true" : "false");
   });
 }
@@ -125,6 +132,7 @@ function renderAnalysis(data) {
   const notes = [data.whyThisMatters, ...classifierNotes, ...extractionNotes].filter(Boolean);
 
   state.analysis = data;
+  state.activeMode = null;
   elements.title.textContent = data.title || state.payload.title || "Untitled page";
   elements.pageType.textContent = data.pageType || "page";
   elements.transcript.textContent = data.summaryPreview || "Choose a mode to hear this page.";
@@ -165,6 +173,7 @@ async function generate(mode) {
     return;
   }
 
+  state.activeMode = mode;
   setLoadingMode(mode);
   hideError();
   clearAudio();
@@ -255,5 +264,6 @@ initialize().catch((error) => {
   showError(message);
   setStatus("Could not prepare page");
   state.analysis = null;
+  state.activeMode = null;
   setLoadingMode(null);
 });

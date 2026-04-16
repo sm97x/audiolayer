@@ -81,6 +81,7 @@ export function DemoConsole() {
   const [transcript, setTranscript] = useState("");
   const [isClassifying, setIsClassifying] = useState(false);
   const [loadingMode, setLoadingMode] = useState<GenerationMode | null>(null);
+  const [activeMode, setActiveMode] = useState<GenerationMode | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const audioUrlRef = useRef<string | null>(null);
@@ -120,6 +121,7 @@ export function DemoConsole() {
     async function classifySample() {
       setIsClassifying(true);
       setLoadingMode(null);
+      setActiveMode(null);
       setError(null);
       setClassification(null);
       setTranscript("");
@@ -182,6 +184,7 @@ export function DemoConsole() {
     generationRequestIdRef.current = requestId;
 
     setLoadingMode(mode);
+    setActiveMode(mode);
     setError(null);
     setTranscript("");
     replaceAudioUrl(null);
@@ -240,6 +243,7 @@ export function DemoConsole() {
     primary?: boolean;
   }) {
     const state = getDemoButtonState(mode, loadingMode, Boolean(classification));
+    const isActive = loadingMode === mode || activeMode === mode || (!activeMode && primary);
 
     return (
       <button
@@ -247,8 +251,8 @@ export function DemoConsole() {
         onClick={() => void generate(mode)}
         disabled={state.disabled}
         aria-busy={state.isLoading}
-        className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
-          primary
+        className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+          isActive
             ? "bg-[var(--foreground)] text-white"
             : "border hairline bg-white/50 text-[var(--foreground)]"
         }`}

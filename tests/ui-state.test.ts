@@ -18,7 +18,8 @@ function loadPopupStateHelpers() {
       mode: "brief" | "read" | "podcast",
       loadingMode: "brief" | "read" | "podcast" | null,
       hasAnalysis: boolean,
-    ) => { disabled: boolean; isLoading: boolean };
+      activeMode?: "brief" | "read" | "podcast" | null,
+    ) => { disabled: boolean; isLoading: boolean; isActive: boolean };
   };
 }
 
@@ -44,13 +45,20 @@ describe("loading state helpers", () => {
   it("uses the same per-mode behavior in the extension popup", () => {
     const helpers = loadPopupStateHelpers();
 
-    expect(helpers.getButtonState("podcast", "podcast", true)).toEqual({
+    expect(helpers.getButtonState("podcast", "podcast", true, "podcast")).toEqual({
       disabled: true,
       isLoading: true,
+      isActive: true,
     });
-    expect(helpers.getButtonState("brief", "podcast", true)).toEqual({
+    expect(helpers.getButtonState("brief", "podcast", true, "podcast")).toEqual({
       disabled: true,
       isLoading: false,
+      isActive: false,
+    });
+    expect(helpers.getButtonState("podcast", null, true, "podcast")).toEqual({
+      disabled: false,
+      isLoading: false,
+      isActive: true,
     });
   });
 });

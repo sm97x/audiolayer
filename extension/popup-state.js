@@ -17,10 +17,11 @@
     return "Ready";
   }
 
-  function getButtonState(mode, loadingMode, hasAnalysis) {
+  function getButtonState(mode, loadingMode, hasAnalysis, activeMode) {
     return {
       disabled: !hasAnalysis || loadingMode !== null,
       isLoading: loadingMode === mode,
+      isActive: loadingMode === mode || activeMode === mode,
     };
   }
 
