@@ -1,11 +1,46 @@
 export type PageType = "article" | "docs" | "thread";
 export type ListenMode = "brief" | "read" | "podcast";
+export type SourceKind = "html" | "pdf";
+export type HostFamily =
+  | "bbc"
+  | "reddit"
+  | "x"
+  | "hackernews"
+  | "github"
+  | "stackoverflow"
+  | "generic";
+export type PageIntentHint = "article" | "docs" | "thread" | "unknown";
+
+export interface SourceHints {
+  sourceKind: SourceKind;
+  hostFamily: HostFamily;
+  pageIntentHint: PageIntentHint;
+  matchedRule?: string;
+  selectedTextLength?: number;
+}
 
 export interface PagePayload {
   url: string;
   html?: string;
   textContent?: string;
   title?: string;
+  selectedText?: string;
+  sourceHints?: Partial<SourceHints>;
+}
+
+export interface ThreadPost {
+  author?: string;
+  timestamp?: string;
+  score?: string;
+  depth?: number;
+  text: string;
+}
+
+export interface ThreadModel {
+  title: string;
+  originalPost?: ThreadPost;
+  replies: ThreadPost[];
+  themes?: string[];
 }
 
 export interface ClassifierMetrics {
@@ -32,6 +67,7 @@ export interface ClassificationResult {
   reasons: string[];
   metrics: ClassifierMetrics;
   scores: Record<PageType, number>;
+  sourceHints: SourceHints;
 }
 
 export interface ExtractionDebug {
@@ -51,6 +87,8 @@ export interface CleanedPage {
   estimatedReadingTime: number;
   headings: string[];
   byline?: string;
+  sourceHints?: SourceHints;
+  threadModel?: ThreadModel;
   debug: ExtractionDebug;
 }
 

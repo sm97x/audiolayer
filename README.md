@@ -9,8 +9,18 @@ The Chrome extension inspects the current page and calls a Next.js backend. The 
 - Turns articles, documentation pages, and discussion threads into audio.
 - Supports three modes: Brief me, Read it, and Podcast mode.
 - Removes common webpage clutter before generating audio.
+- Handles public PDFs by extracting text on the backend before preparing audio.
 - Uses ElevenLabs for single-voice narration and two-voice podcast recaps.
 - Includes a demo page with sample article, docs, and thread content.
+
+## How Modes Work
+
+AudioLayer separates the kind of page from the way it is played back.
+
+- Page types: article, docs, thread. PDFs are ingested first, then treated like docs or article-style documents.
+- Brief me: single-voice summary.
+- Read it: single-voice body narration.
+- Podcast mode: two-host recap.
 
 ## Stack
 
@@ -19,6 +29,7 @@ The Chrome extension inspects the current page and calls a Next.js backend. The 
 - Tailwind CSS
 - Chrome Extension Manifest V3
 - ElevenLabs JavaScript SDK
+- pdf-parse
 - Vitest
 
 ## Getting Started
@@ -129,5 +140,7 @@ tests/               Vitest coverage for core logic
 - Page cleanup is rule-based and will not handle every publisher layout perfectly.
 - Very long pages are shortened into a practical transcript before audio generation.
 - Code blocks are summarized for audio instead of read line by line.
+- X/Twitter extraction is best effort because public markup changes often.
+- PDFs must be reachable by the backend, or the extension needs selected/visible text as a fallback.
 - There is no login, database, history, or cross-device queue.
 - Audio is generated after each request rather than streamed sentence by sentence.

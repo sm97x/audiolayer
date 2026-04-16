@@ -128,7 +128,7 @@ describe("summarizePage", () => {
 
     expect(brief).not.toMatch(/^Briefing on|Key takeaways|First,|Second,|Third,/i);
     expect(brief).toMatch(/bookmarking product docs|adaptive audio layer|docs/i);
-    expect(brief).toContain("I would absolutely use it for docs");
+    expect(brief).toMatch(/replies mainly focus|structure preserved|useful in practice|main point/i);
     expect(brief).not.toMatch(/\bReply\s+\d+\b/i);
     expect(brief).not.toMatch(/\b\d+\s+(minute|hour|day)s?\s+ago\b/i);
   });

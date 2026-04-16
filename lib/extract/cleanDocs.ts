@@ -10,6 +10,7 @@ import {
   removeJunk,
   withinCharBudget,
 } from "@/lib/extract/common";
+import { detectSourceHints } from "@/lib/source-detection";
 import type { CleanedPage, PagePayload } from "@/lib/types";
 
 const CODE_PLACEHOLDER = "Code example omitted from audio version.";
@@ -39,6 +40,7 @@ function appendDocBlock(target: string[], line: string | null): void {
 export function cleanDocs(payload: PagePayload): CleanedPage {
   const html = payload.html || htmlFromText(payload.textContent ?? "", payload.title);
   const document = parseHtmlDocument(html, payload.url);
+  const sourceHints = detectSourceHints(payload);
   const cleanup = removeJunk(document);
   const title = pickTitle(document, payload.title ?? "Untitled documentation page");
 
@@ -98,6 +100,7 @@ export function cleanDocs(payload: PagePayload): CleanedPage {
     pageType: "docs",
     textBlocks,
     headings: collectHeadings(container),
+    sourceHints,
     cleanup,
     notes: [
       `Docs cleaner used a ${container.tagName.toLowerCase()} container and preserved section structure for audio.`,

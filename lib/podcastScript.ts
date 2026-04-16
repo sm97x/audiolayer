@@ -9,17 +9,17 @@ import {
   tokenize,
   type AudioDocument,
 } from "@/lib/audioDocument";
-import type { CleanedPage, PodcastScript, PodcastTurn, SummaryResult } from "@/lib/types";
+import type { CleanedPage, PodcastScript, PodcastTurn, SummaryResult, ThreadModel } from "@/lib/types";
 
-interface PodcastBrief {
-  subject: string;
-  lead: string;
-  detail: string;
-  consequence: string;
-  response?: string;
-  next?: string;
+interface ConversationPlan {
+  intro: string;
+  mainPoint: string;
+  supportingDetails: string[];
+  tensionOrDebate?: string;
+  whyItMatters: string;
+  responseOrNextStep?: string;
   closing: string;
-  isLongForm: boolean;
+  recommendedTurnCount: number;
 }
 
 const BANNED_SPOKEN_PHRASES = [
@@ -57,13 +57,40 @@ const ENTITY_STOPWORDS = new Set([
   "Why",
 ]);
 
+const ARTICLE_HOST_B = [
+  "What's the important part?",
+  "What detail changes how you hear it?",
+  "Why does that matter beyond the headline?",
+  "Is there a response or next step?",
+  "What's the useful thing to remember?",
+  "Any extra context worth keeping?",
+  "Where does that leave the story?",
+];
+
+const DOCS_HOST_B = [
+  "Where would someone start?",
+  "What are the main steps?",
+  "What usually trips people up?",
+  "What still needs the screen?",
+  "So how should someone use this page?",
+];
+
+const THREAD_HOST_B = [
+  "What are people reacting to?",
+  "What did the replies focus on?",
+  "Was there agreement, or more of a split?",
+  "What practical detail came out of it?",
+  "What's the useful takeaway?",
+];
+
 function normalizeForDialogue(text: string): string {
   return normalizeAudioText(text)
     .replace(/\s+-\s+/g, " - ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-function trimTurn(text: string, maxLength = 330): string {
+function trimTurn(text: string, maxLength = 460): string {
   const normalized = normalizeForDialogue(text);
 
   if (normalized.length <= maxLength) {
@@ -119,23 +146,13 @@ function lowerFirst(text: string): string {
 
 function readableSubjectFromTitle(title: string): string {
   const cleaned = cleanTitle(title);
-
   if (!cleaned) {
     return "this page";
   }
 
   const colonPrefix = cleaned.split(":")[0]?.trim();
   if (colonPrefix && colonPrefix !== cleaned && colonPrefix.split(/\s+/).length <= 5) {
-    if (/\binjury$/i.test(colonPrefix)) {
-      return colonPrefix.replace(/\s+injury$/i, "'s injury");
-    }
-
-    return colonPrefix;
-  }
-
-  const helpMatch = cleaned.match(/^(.+?)\s+helps?\s+(.+)$/i);
-  if (helpMatch?.[1] && helpMatch[2]) {
-    return lowerFirst(`${helpMatch[1]} helping ${helpMatch[2]}`);
+    return /\binjury$/i.test(colonPrefix) ? colonPrefix.replace(/\s+injury$/i, "'s injury") : colonPrefix;
   }
 
   const toMatch = cleaned.match(/^([A-Z][A-Za-z0-9& .'-]{2,80})\s+to\s+(.+)$/);
@@ -143,22 +160,14 @@ function readableSubjectFromTitle(title: string): string {
     return `${toMatch[1]} planning to ${toMatch[2]}`;
   }
 
-  if (cleaned.split(/\s+/).length <= 14) {
-    return lowerFirst(cleaned);
-  }
-
-  return "this story";
-}
-
-function comparableText(text: string): string {
-  return normalizeComparable(text);
+  return cleaned.split(/\s+/).length <= 14 ? lowerFirst(cleaned) : "this story";
 }
 
 function isLowValueSentence(sentence: string, page: CleanedPage): boolean {
-  const comparable = comparableText(sentence);
+  const comparable = normalizeComparable(sentence);
 
   return !comparable ||
-    comparable === comparableText(page.title) ||
+    comparable === normalizeComparable(page.title) ||
     /^(published|updated|last updated)\s*\d/.test(comparable) ||
     /^\d{1,2}:\d{2}$/.test(comparable) ||
     /^(watch|listen|media caption|image caption|video caption)\b/i.test(sentence) ||
@@ -170,6 +179,8 @@ function cleanCandidateSentence(sentence: string, page: CleanedPage): string | n
     .replace(/^Bullet:\s*/i, "")
     .replace(/^Original post\.\s*/i, "")
     .replace(/^Top replies\.\s*/i, "")
+    .replace(/^Common themes\.\s*/i, "")
+    .replace(/^Theme:\s*/i, "")
     .replace(/^Reply\s+\d+\.\s*/i, "")
     .replace(/\s+in a statement published by [^.]+/gi, "")
     .replace(/,\s*(?:confirmed|said|says|told|added)\s+[^.]{2,120}$/i, ".")
@@ -187,36 +198,6 @@ function cleanCandidateSentence(sentence: string, page: CleanedPage): string | n
   return ensureSentence(cleaned);
 }
 
-function uniqueSentences(sentences: string[]): string[] {
-  const seen = new Set<string>();
-  const output: string[] = [];
-
-  for (const sentence of sentences.map(normalizeForDialogue)) {
-    const comparable = comparableText(sentence);
-    if (!comparable || seen.has(comparable)) {
-      continue;
-    }
-
-    seen.add(comparable);
-    output.push(sentence);
-  }
-
-  return output;
-}
-
-function getCandidateSentences(page: CleanedPage, summary: SummaryResult): string[] {
-  const document = buildAudioDocument(page);
-
-  return uniqueSentences([
-    ...summary.selectedSentences,
-    ...summary.takeaways,
-    summary.shortSummary,
-    ...getNarratableSentences(document),
-  ])
-    .map((sentence) => cleanCandidateSentence(sentence, page))
-    .filter((sentence): sentence is string => Boolean(sentence));
-}
-
 function tokenSimilarity(left: string, right: string): number {
   const leftTokens = new Set(tokenize(left));
   const rightTokens = new Set(tokenize(right));
@@ -231,15 +212,48 @@ function tokenSimilarity(left: string, right: string): number {
   return union === 0 ? 0 : intersection / union;
 }
 
-function findFact(
-  sentences: string[],
-  pattern: RegExp,
-  used: string[] = [],
-): string | undefined {
-  return sentences.find(
-    (sentence) =>
-      pattern.test(sentence) &&
-      !used.some((current) => tokenSimilarity(current, sentence) > 0.5),
+function isDuplicateIdea(candidate: string, used: string[]): boolean {
+  const comparable = normalizeComparable(candidate);
+  return used.some((item) => {
+    const itemComparable = normalizeComparable(item);
+    return comparable === itemComparable ||
+      (comparable.length > 80 && itemComparable.includes(comparable)) ||
+      (itemComparable.length > 80 && comparable.includes(itemComparable)) ||
+      tokenSimilarity(candidate, item) > 0.52;
+  });
+}
+
+function selectDistinct(candidates: string[], maxItems: number, used: string[] = []): string[] {
+  const selected: string[] = [];
+
+  for (const candidate of candidates.map(normalizeForDialogue).filter(Boolean)) {
+    if (isDuplicateIdea(candidate, [...used, ...selected])) {
+      continue;
+    }
+
+    selected.push(candidate);
+    if (selected.length >= maxItems) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function getCandidateSentences(page: CleanedPage, summary: SummaryResult): string[] {
+  const document = buildAudioDocument(page);
+
+  return selectDistinct(
+    [
+      ...summary.selectedSentences,
+      ...summary.takeaways,
+      summary.shortSummary,
+      ...getNarratableSentences(document),
+    ]
+      .flatMap((sentence) => splitSentences(sentence))
+      .map((sentence) => cleanCandidateSentence(sentence, page))
+      .filter((sentence): sentence is string => Boolean(sentence)),
+    18,
   );
 }
 
@@ -253,7 +267,7 @@ function extractEntities(text: string): string[] {
 
   for (const match of matches) {
     const firstWord = match.split(/\s+/)[0];
-    const comparable = comparableText(match);
+    const comparable = normalizeComparable(match);
 
     if (match.length < 3 || ENTITY_STOPWORDS.has(firstWord) || seen.has(comparable)) {
       continue;
@@ -267,7 +281,11 @@ function extractEntities(text: string): string[] {
 }
 
 function extractSubject(page: CleanedPage, sentences: string[]): string {
-  if (page.pageType === "docs" || page.pageType === "thread") {
+  if (page.pageType === "thread") {
+    return cleanTitle(page.threadModel?.title ?? page.title);
+  }
+
+  if (page.pageType === "docs") {
     return cleanTitle(page.title);
   }
 
@@ -291,299 +309,338 @@ function chooseLead(sentences: string[], page: CleanedPage): string {
         )
           ? 2
           : 0;
+        const titleOverlap = tokens.filter((token) => titleTokens.has(token)).length / Math.max(1, titleTokens.size);
 
         return {
           sentence,
-          score: overlap(tokens, titleTokens) * 1.4 + actionScore + Math.max(0, 4 - index * 0.35),
+          score: titleOverlap * 1.4 + actionScore + Math.max(0, 4 - index * 0.35),
         };
       })
       .sort((left, right) => right.score - left.score)[0]?.sentence ?? page.title
   );
 }
 
-function overlap(tokens: string[], reference: Set<string>): number {
-  if (tokens.length === 0 || reference.size === 0) {
-    return 0;
-  }
-
-  return tokens.filter((token) => reference.has(token)).length / reference.size;
+function findFact(sentences: string[], pattern: RegExp, used: string[] = []): string | undefined {
+  return sentences.find((sentence) => pattern.test(sentence) && !isDuplicateIdea(sentence, used));
 }
 
-function buildArticleBrief(page: CleanedPage, summary: SummaryResult, document: AudioDocument): PodcastBrief {
+function recommendedTurnCount(document: AudioDocument, factCount: number): number {
+  if (document.stats.wordCount >= 1_000 || factCount >= 4) {
+    return 15;
+  }
+
+  if (document.stats.wordCount >= 550 || factCount >= 2) {
+    return 11;
+  }
+
+  return 7;
+}
+
+function buildArticlePlan(page: CleanedPage, summary: SummaryResult, document: AudioDocument): ConversationPlan {
   const sentences = getCandidateSentences(page, summary);
   const subject = extractSubject(page, sentences);
-  const lead = chooseLead(sentences, page);
-  const used = [lead];
-  const detail =
-    findFact(
-      sentences,
-      /\b(after|because|including|evidence|reported|according|data|figures?|percent|million|billion|charged|cost|fees?|method|approach)\b/i,
-      used,
-    ) ??
-    sentences.find((sentence) => tokenSimilarity(sentence, lead) < 0.45) ??
-    lead;
-
-  used.push(detail);
-
-  const consequence =
-    findFact(
-      sentences,
-      /\b(means|could|may|might|risk|impact|change|affect|pressure|problem|concern|full force|response|denied|suspended|removed|review)\b/i,
-      used,
-    ) ??
-    findFact(sentences, /\b(next|expected|remain|unclear|future|timeline|plans?)\b/i, used) ??
+  const mainPoint = chooseLead(sentences, page);
+  const used = [mainPoint];
+  const supportCandidates = [
+    findFact(sentences, /\b(after|because|including|evidence|reported|according|data|figures?|percent|million|billion|charged|cost|fees?|method|approach)\b/i, used),
+    findFact(sentences, /\b(response|responded|denied|warned|criticised|officials?|company|government|spokesperson|regulator|court|police|lawyer|minister|office)\b/i, used),
+    findFact(sentences, /\b(next|expected|could|may|might|remain|unclear|review|investigation|change|plans?|future|timeline|confirm|scans?)\b/i, used),
+    ...sentences,
+  ].filter((sentence): sentence is string => Boolean(sentence));
+  const supportingDetails = selectDistinct(supportCandidates, document.stats.isLongForm ? 4 : 2, used);
+  used.push(...supportingDetails);
+  const whyItMatters =
+    findFact(sentences, /\b(means|could|may|might|risk|impact|change|affect|pressure|problem|concern|full force|consequence|blow|shows?|shifting|protect)\b/i, used) ??
     summary.whyThisMatters;
-
-  used.push(consequence);
-
-  const response = findFact(
+  used.push(whyItMatters);
+  const responseOrNextStep = findFact(
     sentences,
-    /\b(response|responded|denied|said|spokesperson|officials?|company|government|regulator|court|police|lawyer|minister|office)\b/i,
+    /\b(response|responded|denied|suspended|investigation|expected|could|may|next|review|confirm|unclear|not rule out|conditions|end of the year)\b/i,
     used,
   );
 
-  if (response) {
-    used.push(response);
+  return {
+    intro: `This page is about ${subject}.`,
+    mainPoint,
+    supportingDetails,
+    whyItMatters,
+    responseOrNextStep,
+    closing: responseOrNextStep ?? whyItMatters,
+    recommendedTurnCount: recommendedTurnCount(document, supportingDetails.length + (responseOrNextStep ? 1 : 0)),
+  };
+}
+
+function buildDocsPlan(page: CleanedPage, summary: SummaryResult, document: AudioDocument): ConversationPlan {
+  const sentences = getCandidateSentences(page, summary);
+  const subject = extractSubject(page, sentences);
+  const start = findFact(sentences, /\b(start|setup|create|choose|install|configure|request|endpoint|before you start)\b/i) ??
+    sentences[0] ??
+    `${subject} explains a task step by step.`;
+  const steps = selectDistinct(
+    sentences.filter((sentence) =>
+      /\b(step|send|request|response|create|choose|configure|limit|constraint|must|need)\b/i.test(sentence),
+    ),
+    3,
+    [start],
+  );
+  const hasCode = getNarratableBlocks(document).some((block) => block.kind === "code");
+  const caveat = hasCode
+    ? "The code examples and exact syntax still need the screen, but the audio can help you understand the order of work."
+    : "The screen is still useful for exact settings, names, and any visual examples.";
+
+  return {
+    intro: `This docs page is about ${subject}.`,
+    mainPoint: start,
+    supportingDetails: steps.length > 0 ? steps : sentences.slice(1, 3),
+    tensionOrDebate: caveat,
+    whyItMatters: "It helps you understand the path through the task before you return to the page for exact details.",
+    closing: caveat,
+    recommendedTurnCount: document.stats.wordCount >= 500 ? 11 : 7,
+  };
+}
+
+function trimThreadPoint(text: string): string {
+  const normalized = normalizeForDialogue(text);
+  if (normalized.length <= 300) {
+    return ensureSentence(normalized);
   }
 
-  const next = findFact(
-    sentences,
-    /\b(next|expected|could|may|might|remain|unclear|review|investigation|future|timeline|confirm|scans?)\b/i,
-    used,
-  );
-
-  const closing =
-    next ??
-    consequence ??
-    "The useful point is what changes for the people, teams, or organisations involved.";
-
-  return {
-    subject,
-    lead,
-    detail,
-    consequence,
-    response,
-    next,
-    closing,
-    isLongForm: document.stats.isLongForm,
-  };
+  return trimTurn(normalized, 300);
 }
 
-function buildDocsBrief(page: CleanedPage, summary: SummaryResult, document: AudioDocument): PodcastBrief {
+function inferThreadTension(model: ThreadModel): string | undefined {
+  const combined = model.replies.map((reply) => reply.text).join(" ");
+  const positive = /\b(agree|yes|useful|would use|works|good|helpful|exactly)\b/i.test(combined);
+  const caution = /\b(but|however|concern|risk|wrong|trust|not sure|depends|problem|edge case)\b/i.test(combined);
+
+  if (positive && caution) {
+    return "There is some agreement on the idea, but the replies add caveats about trust, workflow, or edge cases.";
+  }
+
+  if (caution) {
+    return "The replies are more cautious than dismissive; they focus on where the idea could break down.";
+  }
+
+  if (positive) {
+    return "The replies mostly build on the original idea and add practical uses for it.";
+  }
+
+  return undefined;
+}
+
+function buildThreadPlan(page: CleanedPage, summary: SummaryResult, document: AudioDocument): ConversationPlan {
+  const model = page.threadModel;
+
+  if (model) {
+    const original = model.originalPost?.text ?? model.title;
+    const themes = model.themes ?? [];
+    const replyDetails = selectDistinct(
+      [
+        ...themes,
+        ...model.replies.map((reply) => reply.text),
+      ],
+      model.replies.length >= 5 ? 4 : 3,
+      [original],
+    );
+    const tension = inferThreadTension(model);
+
+    return {
+      intro: `This is a thread about ${cleanTitle(model.title)}.`,
+      mainPoint: trimThreadPoint(original),
+      supportingDetails: replyDetails,
+      tensionOrDebate: tension,
+      whyItMatters: themes.length
+        ? `The replies mainly turn around ${themes.slice(0, 2).join(" and ")}.`
+        : "The value is in the pattern of replies, not in reading every comment.",
+      closing: "The useful takeaway is the shape of the discussion: the original need, the strongest replies, and the practical limits people raise.",
+      recommendedTurnCount: model.replies.length >= 6 || document.stats.wordCount >= 800 ? 11 : 7,
+    };
+  }
+
   const sentences = getCandidateSentences(page, summary);
-  const subject = extractSubject(page, sentences);
-  const lead = sentences[0] ?? `${subject} explains a task step by step.`;
-  const detail =
-    findFact(sentences, /\b(start|setup|create|choose|install|configure|request|response|endpoint|constraint|limit)\b/i) ??
-    sentences[1] ??
-    lead;
-  const hasCode = getNarratableBlocks(document).some((block) => block.kind === "code");
-  const consequence = hasCode
-    ? "The code examples are still best checked on the page, but the audio can give you the route through the task."
-    : "The audio is best for understanding the order of steps before you return to the page.";
+  const lead = sentences[0] ?? page.title;
+  const details = selectDistinct(sentences.slice(1), 3, [lead]);
 
   return {
-    subject,
-    lead,
-    detail,
-    consequence,
-    closing: consequence,
-    isLongForm: false,
+    intro: `This thread is about ${cleanTitle(page.title)}.`,
+    mainPoint: lead,
+    supportingDetails: details,
+    whyItMatters: "The value is in where replies agree, push back, or add useful detail.",
+    closing: "The useful takeaway is the shape of the replies rather than every individual comment.",
+    recommendedTurnCount: document.stats.wordCount >= 800 ? 11 : 7,
   };
 }
 
-function buildThreadBrief(page: CleanedPage, summary: SummaryResult): PodcastBrief {
-  const sentences = getCandidateSentences(page, summary);
-  const subject = extractSubject(page, sentences);
-  const lead = sentences[0] ?? `${subject} starts with a question or claim.`;
-  const detail =
-    findFact(sentences.slice(1), /\b(reply|replies|people|some|others|agree|disagree|would|want|think|use)\b/i) ??
-    sentences.find((sentence) => tokenSimilarity(sentence, lead) < 0.45) ??
-    lead;
-  const consequence = "The value is in the pattern of replies: where people agree, push back, or add a practical detail.";
-
-  return {
-    subject,
-    lead,
-    detail,
-    consequence,
-    closing: consequence,
-    isLongForm: false,
-  };
-}
-
-function buildPodcastBrief(page: CleanedPage, summary: SummaryResult): PodcastBrief {
+function buildConversationPlan(page: CleanedPage, summary: SummaryResult): ConversationPlan {
   const document = buildAudioDocument(page);
 
   if (page.pageType === "docs") {
-    return buildDocsBrief(page, summary, document);
+    return buildDocsPlan(page, summary, document);
   }
 
   if (page.pageType === "thread") {
-    return buildThreadBrief(page, summary);
+    return buildThreadPlan(page, summary, document);
   }
 
-  return buildArticleBrief(page, summary, document);
+  return buildArticlePlan(page, summary, document);
 }
 
-function articleConversation(brief: PodcastBrief): PodcastTurn[] {
-  const turns: PodcastTurn[] = [
-    {
-      speaker: "Host A",
-      text: trimTurn(`This page is about ${brief.subject}.`),
-    },
-    {
-      speaker: "Host B",
-      text: "What matters most?",
-    },
-    {
-      speaker: "Host A",
-      text: trimTurn(brief.lead),
-    },
-    {
-      speaker: "Host B",
-      text: "What detail makes that worth paying attention to?",
-    },
-    {
-      speaker: "Host A",
-      text: trimTurn(brief.detail),
-    },
-    {
-      speaker: "Host B",
-      text: "Why does it matter?",
-    },
-    {
-      speaker: "Host A",
-      text: trimTurn(brief.consequence),
-    },
-  ];
-
-  if (brief.isLongForm) {
-    turns.push(
-      {
-        speaker: "Host B",
-        text: "Is there a response or next step?",
-      },
-      {
-        speaker: "Host A",
-        text: trimTurn(brief.response ?? brief.next ?? brief.closing),
-      },
-      {
-        speaker: "Host B",
-        text: "So what should I keep in mind after listening?",
-      },
-      {
-        speaker: "Host A",
-        text: trimTurn(brief.closing),
-      },
-    );
-  } else {
-    turns.push(
-      {
-        speaker: "Host B",
-        text: "Where does that leave us?",
-      },
-      {
-        speaker: "Host A",
-        text: trimTurn(brief.closing),
-      },
-    );
+function pushTurn(turns: PodcastTurn[], speaker: PodcastTurn["speaker"], text: string, usedHostB: string[] = []): void {
+  if (speaker === "Host B") {
+    if (usedHostB.some((question) => tokenSimilarity(question, text) > 0.5)) {
+      return;
+    }
+    usedHostB.push(text);
   }
 
-  return turns;
+  turns.push({
+    speaker,
+    text: trimTurn(text),
+  });
 }
 
-function docsConversation(brief: PodcastBrief): PodcastTurn[] {
-  return [
-    {
-      speaker: "Host A",
-      text: trimTurn(`This docs page is about ${brief.subject}.`),
-    },
-    {
-      speaker: "Host B",
-      text: "Where should someone start?",
-    },
-    {
-      speaker: "Host A",
-      text: trimTurn(brief.lead),
-    },
-    {
-      speaker: "Host B",
-      text: "What should they keep open on the screen?",
-    },
-    {
-      speaker: "Host A",
-      text: trimTurn(`${brief.detail} ${brief.consequence}`),
-    },
-    {
-      speaker: "Host B",
-      text: trimTurn(brief.closing),
-    },
-  ];
+function renderArticleConversation(plan: ConversationPlan): PodcastTurn[] {
+  const turns: PodcastTurn[] = [];
+  const usedQuestions: string[] = [];
+  const [detailOne, detailTwo, detailThree, detailFour] = plan.supportingDetails;
+
+  pushTurn(turns, "Host A", plan.intro, usedQuestions);
+  pushTurn(turns, "Host B", ARTICLE_HOST_B[0], usedQuestions);
+  pushTurn(turns, "Host A", plan.mainPoint, usedQuestions);
+  pushTurn(turns, "Host B", ARTICLE_HOST_B[1], usedQuestions);
+  pushTurn(turns, "Host A", detailOne ?? plan.whyItMatters, usedQuestions);
+  pushTurn(turns, "Host B", ARTICLE_HOST_B[2], usedQuestions);
+  pushTurn(turns, "Host A", plan.whyItMatters, usedQuestions);
+
+  if (plan.recommendedTurnCount >= 11 && detailTwo) {
+    pushTurn(turns, "Host B", ARTICLE_HOST_B[5], usedQuestions);
+    pushTurn(turns, "Host A", detailTwo, usedQuestions);
+  }
+
+  if (plan.recommendedTurnCount >= 13 && (plan.responseOrNextStep || detailThree)) {
+    pushTurn(turns, "Host B", ARTICLE_HOST_B[3], usedQuestions);
+    pushTurn(turns, "Host A", plan.responseOrNextStep ?? detailThree, usedQuestions);
+  }
+
+  if (plan.recommendedTurnCount >= 15 && detailFour) {
+    pushTurn(turns, "Host B", ARTICLE_HOST_B[6], usedQuestions);
+    pushTurn(turns, "Host A", detailFour, usedQuestions);
+  }
+
+  if (plan.recommendedTurnCount >= 11) {
+    pushTurn(turns, "Host B", ARTICLE_HOST_B[4], usedQuestions);
+    pushTurn(turns, "Host A", plan.closing, usedQuestions);
+  }
+
+  return turns.slice(0, plan.recommendedTurnCount);
 }
 
-function threadConversation(brief: PodcastBrief): PodcastTurn[] {
-  return [
-    {
-      speaker: "Host A",
-      text: trimTurn(`This thread is about ${brief.subject}.`),
-    },
-    {
-      speaker: "Host B",
-      text: "What starts the conversation?",
-    },
-    {
-      speaker: "Host A",
-      text: trimTurn(brief.lead),
-    },
-    {
-      speaker: "Host B",
-      text: "Where do the replies add signal?",
-    },
-    {
-      speaker: "Host A",
-      text: trimTurn(brief.detail),
-    },
-    {
-      speaker: "Host B",
-      text: trimTurn(brief.closing),
-    },
-  ];
+function renderDocsConversation(plan: ConversationPlan): PodcastTurn[] {
+  const turns: PodcastTurn[] = [];
+  const usedQuestions: string[] = [];
+
+  pushTurn(turns, "Host A", plan.intro, usedQuestions);
+  pushTurn(turns, "Host B", DOCS_HOST_B[0], usedQuestions);
+  pushTurn(turns, "Host A", plan.mainPoint, usedQuestions);
+  pushTurn(turns, "Host B", DOCS_HOST_B[1], usedQuestions);
+  pushTurn(turns, "Host A", plan.supportingDetails.join(" "), usedQuestions);
+  pushTurn(turns, "Host B", DOCS_HOST_B[2], usedQuestions);
+  pushTurn(turns, "Host A", plan.tensionOrDebate ?? plan.whyItMatters, usedQuestions);
+
+  if (plan.recommendedTurnCount >= 11) {
+    pushTurn(turns, "Host B", DOCS_HOST_B[3], usedQuestions);
+    pushTurn(turns, "Host A", plan.closing, usedQuestions);
+  }
+
+  if (plan.recommendedTurnCount >= 9) {
+    pushTurn(turns, "Host B", DOCS_HOST_B[4], usedQuestions);
+    pushTurn(turns, "Host A", plan.whyItMatters, usedQuestions);
+  }
+
+  return turns.slice(0, plan.recommendedTurnCount);
 }
 
-function renderConversation(page: CleanedPage, brief: PodcastBrief): PodcastTurn[] {
+function renderThreadConversation(plan: ConversationPlan): PodcastTurn[] {
+  const turns: PodcastTurn[] = [];
+  const usedQuestions: string[] = [];
+  const [themeOne, themeTwo, themeThree] = plan.supportingDetails;
+
+  pushTurn(turns, "Host A", plan.intro, usedQuestions);
+  pushTurn(turns, "Host B", THREAD_HOST_B[0], usedQuestions);
+  pushTurn(turns, "Host A", plan.mainPoint, usedQuestions);
+  pushTurn(turns, "Host B", THREAD_HOST_B[1], usedQuestions);
+  pushTurn(turns, "Host A", themeOne ?? plan.whyItMatters, usedQuestions);
+  pushTurn(turns, "Host B", THREAD_HOST_B[2], usedQuestions);
+  pushTurn(turns, "Host A", plan.tensionOrDebate ?? themeTwo ?? plan.whyItMatters, usedQuestions);
+
+  if (plan.recommendedTurnCount >= 11 && themeTwo) {
+    pushTurn(turns, "Host B", THREAD_HOST_B[3], usedQuestions);
+    pushTurn(turns, "Host A", themeTwo, usedQuestions);
+  }
+
+  if (plan.recommendedTurnCount >= 13 && themeThree) {
+    pushTurn(turns, "Host B", "Any nuance that changes the read on it?", usedQuestions);
+    pushTurn(turns, "Host A", themeThree, usedQuestions);
+  }
+
+  if (plan.recommendedTurnCount >= 9) {
+    pushTurn(turns, "Host B", THREAD_HOST_B[4], usedQuestions);
+    pushTurn(turns, "Host A", plan.closing, usedQuestions);
+  }
+
+  return turns.slice(0, plan.recommendedTurnCount);
+}
+
+function renderConversation(page: CleanedPage, plan: ConversationPlan): PodcastTurn[] {
   if (page.pageType === "docs") {
-    return docsConversation(brief);
+    return renderDocsConversation(plan);
   }
 
   if (page.pageType === "thread") {
-    return threadConversation(brief);
+    return renderThreadConversation(plan);
   }
 
-  return articleConversation(brief);
+  return renderArticleConversation(plan);
 }
 
-function styleGuard(turns: PodcastTurn[], brief: PodcastBrief): PodcastTurn[] {
+function styleGuard(turns: PodcastTurn[], plan: ConversationPlan): PodcastTurn[] {
+  const usedHostA: string[] = [];
+  const usedHostB: string[] = [];
+
   return turns.map((turn, index) => {
     const text = trimTurn(turn.text);
     const lower = text.toLowerCase();
     const hasBannedPhrase = BANNED_SPOKEN_PHRASES.some((phrase) => lower.includes(phrase));
+    const repeated =
+      turn.speaker === "Host A"
+        ? isDuplicateIdea(text, usedHostA)
+        : isDuplicateIdea(text, usedHostB);
 
-    if (!hasBannedPhrase) {
+    if (!hasBannedPhrase && !repeated) {
+      if (turn.speaker === "Host A") {
+        usedHostA.push(text);
+      } else {
+        usedHostB.push(text);
+      }
+
       return {
         ...turn,
         text,
       };
     }
 
+    const fallback =
+      turn.speaker === "Host B"
+        ? index % 3 === 0
+          ? "What changes from here?"
+          : "What should someone remember?"
+        : index > 5
+          ? plan.closing
+          : plan.mainPoint;
+
     return {
       ...turn,
-      text:
-        turn.speaker === "Host B"
-          ? index % 2 === 0
-            ? "Why does that matter?"
-            : "What changes from here?"
-          : trimTurn(index > 4 ? brief.closing : brief.lead),
+      text: trimTurn(fallback),
     };
   });
 }
@@ -592,8 +649,8 @@ export function createPodcastScript(
   page: CleanedPage,
   summary: SummaryResult,
 ): PodcastScript {
-  const brief = buildPodcastBrief(page, summary);
-  const turns = styleGuard(renderConversation(page, brief), brief);
+  const plan = buildConversationPlan(page, summary);
+  const turns = styleGuard(renderConversation(page, plan), plan);
   const script = turns
     .map((turn) =>
       turn.cue

@@ -344,6 +344,35 @@ function buildThreadBrief(
   summary: SummaryResult,
   document: AudioDocument,
 ): string[] {
+  if (page.threadModel) {
+    const original = page.threadModel.originalPost?.text;
+    const themes = page.threadModel.themes ?? [];
+    const replyCount = page.threadModel.replies.length;
+    const sentences: string[] = [];
+
+    if (original) {
+      sentences.push(`The original post is about this: ${trimForBrief(original, 220)}`);
+    } else {
+      sentences.push(`The thread starts with ${page.threadModel.title}.`);
+    }
+
+    if (themes.length > 0) {
+      sentences.push(
+        `The replies mainly focus on ${joinNaturalList(themes.slice(0, 3))}.`,
+      );
+    } else if (replyCount > 0) {
+      sentences.push(`The replies add ${replyCount === 1 ? "one useful response" : `${replyCount} useful responses`} rather than a single article-style point.`);
+    }
+
+    const tension = inferThreadTension(page.threadModel.replies.map((reply) => reply.text));
+    if (tension) {
+      sentences.push(tension);
+    }
+
+    sentences.push("The useful takeaway is the pattern in the replies, not every comment line by line.");
+    return sentences.slice(0, document.stats.isLongForm ? 4 : 3);
+  }
+
   const originalSentences: BriefCandidate[] = [];
   const replySentences: BriefCandidate[] = [];
   let section: "original" | "replies" | undefined;
@@ -402,6 +431,49 @@ function buildThreadBrief(
     rankBriefCandidates(page, buildBriefCandidates(page, summary, document)),
     2,
   );
+}
+
+function trimForBrief(text: string, maxLength: number): string {
+  const normalized = normalizeAudioText(text);
+  if (normalized.length <= maxLength) {
+    return ensureSentence(normalized);
+  }
+
+  const shortened = normalized.slice(0, maxLength);
+  const lastBreak = Math.max(shortened.lastIndexOf(". "), shortened.lastIndexOf(", "), shortened.lastIndexOf(" "));
+  return ensureSentence(shortened.slice(0, lastBreak > 0 ? lastBreak : maxLength).trim());
+}
+
+function joinNaturalList(items: string[]): string {
+  if (items.length <= 1) {
+    return items[0] ?? "";
+  }
+
+  if (items.length === 2) {
+    return `${items[0]} and ${items[1]}`;
+  }
+
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+function inferThreadTension(replyTexts: string[]): string | null {
+  const combined = replyTexts.join(" ");
+  const positive = /\b(agree|yes|useful|would use|works|good|helpful|exactly)\b/i.test(combined);
+  const caution = /\b(but|however|concern|risk|wrong|trust|not sure|depends|problem)\b/i.test(combined);
+
+  if (positive && caution) {
+    return "There is some agreement on the idea, but the replies also add caveats and practical constraints.";
+  }
+
+  if (caution) {
+    return "The replies lean cautious, with people focusing on limits, trust, or edge cases.";
+  }
+
+  if (positive) {
+    return "The replies mostly build on the original point rather than rejecting it.";
+  }
+
+  return null;
 }
 
 function buildBriefSentences(page: CleanedPage, summary: SummaryResult): string[] {
@@ -524,7 +596,61 @@ export function buildBriefTranscript(page: CleanedPage, summary: SummaryResult):
 }
 
 export function buildReadTranscript(page: CleanedPage): string {
+  if (page.pageType === "thread") {
+    return buildThreadReadTranscript(page);
+  }
+
+  if (page.pageType === "docs") {
+    return buildDocsReadTranscript(page);
+  }
+
   return getNarratableText(page)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildDocsReadTranscript(page: CleanedPage): string {
+  const document = buildAudioDocument(page);
+
+  return document.narratableBlocks
+    .map((block) => {
+      if (block.kind === "heading") {
+        return `Section: ${block.text}.`;
+      }
+
+      return block.text;
+    })
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildThreadReadTranscript(page: CleanedPage): string {
+  if (page.threadModel) {
+    const blocks = [page.threadModel.title];
+
+    if (page.threadModel.originalPost?.text) {
+      blocks.push("Original post.");
+      blocks.push(page.threadModel.originalPost.text);
+    }
+
+    if (page.threadModel.replies.length > 0) {
+      blocks.push("Top replies.");
+      page.threadModel.replies.slice(0, 5).forEach((reply, index) => {
+        blocks.push(`Reply ${index + 1}. ${reply.text}`);
+      });
+    }
+
+    if (page.threadModel.themes?.length) {
+      blocks.push(`Common theme in the replies: ${joinNaturalList(page.threadModel.themes.slice(0, 3))}.`);
+    }
+
+    return blocks.join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  return getNarratableText(page)
+    .replace(/\bReply\s+(\d+)\s+from\s+[^.]+?\.\s*/gi, "Reply $1. ")
+    .replace(/\b\d+\s+(?:minute|hour|day|week|month|year)s?\s+ago\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -12,6 +12,12 @@ import {
   removeJunk,
   withinCharBudget,
 } from "@/lib/extract/common";
+import {
+  extractThreadModelWithProfiles,
+  threadProfileNotes,
+} from "@/lib/site-profiles";
+import { detectSourceHints } from "@/lib/source-detection";
+import { threadModelToTextBlocks } from "@/lib/thread-model";
 import type { CleanedPage, PagePayload } from "@/lib/types";
 
 interface ReplyCandidate {
@@ -130,6 +136,7 @@ function replyLabel(candidate: ReplyCandidate, index: number): string {
 export function cleanThread(payload: PagePayload): CleanedPage {
   const html = payload.html || htmlFromText(payload.textContent ?? "", payload.title);
   const document = parseHtmlDocument(html, payload.url);
+  const sourceHints = detectSourceHints(payload);
   const cleanup = removeJunk(document);
   const title = pickTitle(document, payload.title ?? "Untitled discussion thread");
 
@@ -143,6 +150,27 @@ export function cleanThread(payload: PagePayload): CleanedPage {
     "article",
     ".content",
   ]);
+
+  const profiledThreadModel = extractThreadModelWithProfiles(
+    document,
+    payload.title,
+    payload.url,
+    sourceHints,
+  );
+
+  if (profiledThreadModel) {
+    return buildCleanedPage({
+      title: profiledThreadModel.title || title,
+      sourceUrl: payload.url,
+      pageType: "thread",
+      textBlocks: withinCharBudget(threadModelToTextBlocks(profiledThreadModel), 14_000),
+      headings: collectHeadings(container),
+      sourceHints,
+      threadModel: profiledThreadModel,
+      cleanup,
+      notes: threadProfileNotes(sourceHints, profiledThreadModel),
+    });
+  }
 
   const leadParagraphs = collectOrderedBlocks(container, "p, blockquote, li", {
     minLength: 30,
@@ -181,8 +209,10 @@ export function cleanThread(payload: PagePayload): CleanedPage {
     pageType: "thread",
     textBlocks: withinCharBudget(textBlocks, 12_000),
     headings: collectHeadings(container),
+    sourceHints,
     cleanup,
     notes: [
+      `Used generic thread fallback for ${sourceHints.hostFamily}.`,
       `Thread cleaner retained ${topReplies.length} reply blocks after de-duplication.`,
     ],
   });

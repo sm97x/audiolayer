@@ -3,7 +3,7 @@ import { generatePodcastDialogue } from "@/lib/elevenlabs";
 import { createPodcastScript } from "@/lib/podcastScript";
 import { summarizePage } from "@/lib/summarize";
 import { normalizeForSpeech } from "@/lib/ttsNormalize";
-import type { CleanedPage, PageType } from "@/lib/types";
+import type { CleanedPage, PageType, SourceHints, ThreadModel } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -13,6 +13,8 @@ interface PodcastRequestBody {
   cleanedText?: string;
   pageType?: PageType;
   headings?: string[];
+  sourceHints?: SourceHints;
+  threadModel?: ThreadModel;
   debug?: CleanedPage["debug"];
   responseType?: "audio" | "json";
 }
@@ -28,6 +30,8 @@ function buildPage(body: PodcastRequestBody): CleanedPage {
     charCount: cleanedText.length,
     estimatedReadingTime: Math.max(1, Math.ceil(cleanedText.split(/\s+/).filter(Boolean).length / 190)),
     headings: body.headings ?? [],
+    sourceHints: body.sourceHints,
+    threadModel: body.threadModel,
     debug: body.debug ?? {
       headings: body.headings ?? [],
       removedSelectors: [],

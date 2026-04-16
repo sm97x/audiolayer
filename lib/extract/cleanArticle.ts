@@ -12,6 +12,7 @@ import {
   removeJunk,
   withinCharBudget,
 } from "@/lib/extract/common";
+import { detectSourceHints } from "@/lib/source-detection";
 import type { CleanedPage, PagePayload } from "@/lib/types";
 
 function pushUniqueLine(target: string[], line: string | undefined): void {
@@ -43,6 +44,7 @@ function isArticleMetadataLine(text: string): boolean {
 export function cleanArticle(payload: PagePayload): CleanedPage {
   const html = payload.html || htmlFromText(payload.textContent ?? "", payload.title);
   const document = parseHtmlDocument(html, payload.url);
+  const sourceHints = detectSourceHints(payload);
   const cleanup = removeJunk(document);
 
   const title = pickTitle(document, payload.title ?? "Untitled article");
@@ -122,6 +124,7 @@ export function cleanArticle(payload: PagePayload): CleanedPage {
     textBlocks,
     headings: collectHeadings(container),
     byline,
+    sourceHints,
     cleanup,
     notes: [
       `Article cleaner used a ${container.tagName.toLowerCase()} container for the main body.`,

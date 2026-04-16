@@ -5,6 +5,7 @@ import {
   parseHtmlDocument,
   removeJunk,
 } from "@/lib/extract/common";
+import { detectSourceHints } from "@/lib/source-detection";
 import type { ClassificationResult, ClassifierMetrics, PagePayload, PageType } from "@/lib/types";
 
 const THREAD_TERMS = ["comment", "reply", "thread", "discussion", "message", "answer", "tweet"];
@@ -81,6 +82,26 @@ function countThreadBlocks(document: Document): number {
   }
 
   return selected.length;
+}
+
+function countCompactThreadSignals(document: Document, text: string): number {
+  const selectors = [
+    "[data-testid*='comment' i]",
+    "[data-testid*='reply' i]",
+    "[data-testid*='tweet' i]",
+    "shreddit-comment",
+    ".athing.comtr",
+    ".comment",
+    ".reply",
+    ".answer",
+    ".js-comment-container",
+    "article[data-testid='tweet']",
+  ];
+  const selectorHits = document.querySelectorAll(selectors.join(",")).length;
+  const scoreHits = text.match(/\b\d+\s+(?:points?|upvotes?|likes?|reposts?|retweets?|answers?|comments?)\b/gi)?.length ?? 0;
+  const nestedHits = document.querySelectorAll("[data-depth], [data-level], .ind, .child, .replies").length;
+
+  return selectorHits + scoreHits + nestedHits;
 }
 
 function scoreArticle(metrics: ClassifierMetrics): number {
@@ -162,6 +183,7 @@ function buildReasons(pageType: PageType, metrics: ClassifierMetrics): string[] 
 }
 
 export function classifyPage(payload: PagePayload): ClassificationResult {
+  const sourceHints = detectSourceHints(payload);
   const html = payload.html || htmlFromText(payload.textContent ?? "", payload.title);
   const document = parseHtmlDocument(html, payload.url || "https://example.com");
   removeJunk(document);
@@ -184,6 +206,7 @@ export function classifyPage(payload: PagePayload): ClassificationResult {
   const timestampHits = countTimestampSignals(visibleText, document);
   const replyWordHits = visibleText.match(/\b(reply|replied|commented|posted|thread|discussion)\b/gi)
     ?.length ?? 0;
+  const compactThreadSignals = countCompactThreadSignals(document, visibleText);
 
   const threadBlocks = Array.from(document.querySelectorAll("article, li, section, div")).filter(
     (element) => {
@@ -234,18 +257,64 @@ export function classifyPage(payload: PagePayload): ClassificationResult {
     thread: scoreThread(metrics),
   };
 
+  if (sourceHints.pageIntentHint === "thread") {
+    scores.thread = clamp(scores.thread + 0.32);
+    scores.article = clamp(scores.article - 0.14);
+  }
+
+  if (sourceHints.pageIntentHint === "docs") {
+    scores.docs = clamp(scores.docs + 0.28);
+    scores.article = clamp(scores.article - 0.08);
+  }
+
+  if (sourceHints.sourceKind === "pdf") {
+    scores.docs = clamp(scores.docs + 0.42);
+    scores.article = clamp(scores.article - 0.16);
+    scores.thread = clamp(scores.thread - 0.18);
+  }
+
+  if (["reddit", "x", "hackernews", "github", "stackoverflow"].includes(sourceHints.hostFamily)) {
+    scores.thread = clamp(scores.thread + 0.16);
+    if (sourceHints.pageIntentHint === "thread") {
+      scores.thread = clamp(scores.thread + 0.16);
+    }
+  }
+
   if (metrics.commentBlockCount >= 3 && (metrics.usernameHits >= 2 || metrics.replyWordHits >= 2)) {
     scores.thread = clamp(scores.thread + 0.18);
     scores.article = clamp(scores.article - 0.1);
   }
 
-  if (metrics.commentBlockCount >= 4 && metrics.replyWordHits >= 1) {
-    scores.thread = clamp(scores.thread + 0.08);
+  if ((metrics.commentBlockCount >= 4 && metrics.replyWordHits >= 1) || compactThreadSignals >= 4) {
+    scores.thread = clamp(scores.thread + 0.12);
+    scores.article = clamp(scores.article - 0.06);
   }
 
-  if (metrics.commentBlockCount === 0 && metrics.paragraphCount >= 3 && metrics.h1Count > 0) {
+  if (
+    metrics.commentBlockCount === 0 &&
+    compactThreadSignals < 3 &&
+    sourceHints.pageIntentHint !== "thread" &&
+    metrics.paragraphCount >= 3 &&
+    metrics.h1Count > 0
+  ) {
     scores.article = clamp(scores.article + 0.12);
     scores.thread = clamp(scores.thread - 0.18);
+  }
+
+  if (
+    sourceHints.pageIntentHint === "thread" &&
+    scores.article > scores.thread &&
+    scores.article - scores.thread < 0.28
+  ) {
+    scores.thread = clamp(scores.article + 0.03);
+  }
+
+  if (
+    sourceHints.sourceKind === "pdf" &&
+    scores.article > scores.docs &&
+    scores.article - scores.docs < 0.38
+  ) {
+    scores.docs = clamp(scores.article + 0.04);
   }
 
   const sorted = Object.entries(scores).sort((left, right) => right[1] - left[1]) as Array<
@@ -258,8 +327,12 @@ export function classifyPage(payload: PagePayload): ClassificationResult {
   return {
     pageType,
     confidence: Number(confidence.toFixed(2)),
-    reasons: buildReasons(pageType, metrics),
+    reasons: [
+      sourceHints.matchedRule ? `Source hint: ${sourceHints.matchedRule}.` : undefined,
+      ...buildReasons(pageType, metrics),
+    ].filter((reason): reason is string => Boolean(reason)),
     metrics,
     scores,
+    sourceHints,
   };
 }

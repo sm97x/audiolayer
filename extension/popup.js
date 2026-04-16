@@ -126,6 +126,73 @@ async function getPagePayload(tabId) {
   return chrome.tabs.sendMessage(tabId, { type: "AUDIOLAYER_GET_PAGE" });
 }
 
+function sourceHintsForTab(tab) {
+  let parsed;
+  try {
+    parsed = new URL(tab.url || "");
+  } catch {
+    parsed = null;
+  }
+
+  const hostname = (parsed && parsed.hostname.replace(/^www\./, "").toLowerCase()) || "";
+  const pathname = (parsed && parsed.pathname.toLowerCase()) || "";
+  const search = (parsed && parsed.search.toLowerCase()) || "";
+  let hostFamily = "generic";
+  let pageIntentHint = "unknown";
+  let matchedRule = "";
+
+  if (hostname.endsWith("bbc.co.uk") || hostname.endsWith("bbc.com")) hostFamily = "bbc";
+  if (hostname.endsWith("reddit.com") || hostname.endsWith("old.reddit.com")) hostFamily = "reddit";
+  if (hostname === "x.com" || hostname.endsWith(".x.com") || hostname === "twitter.com" || hostname.endsWith(".twitter.com")) hostFamily = "x";
+  if (hostname === "news.ycombinator.com") hostFamily = "hackernews";
+  if (hostname === "github.com") hostFamily = "github";
+  if (hostname === "stackoverflow.com" || hostname.endsWith(".stackoverflow.com")) hostFamily = "stackoverflow";
+
+  if (hostFamily === "reddit" && pathname.includes("/comments/")) {
+    pageIntentHint = "thread";
+    matchedRule = "reddit comments URL";
+  } else if (hostFamily === "x" && /\/status\/\d+/.test(pathname)) {
+    pageIntentHint = "thread";
+    matchedRule = "x/twitter status URL";
+  } else if (hostFamily === "hackernews" && pathname === "/item" && search.includes("id=")) {
+    pageIntentHint = "thread";
+    matchedRule = "hacker news item URL";
+  } else if (hostFamily === "github" && /\/(?:issues|discussions)\/\d+/.test(pathname)) {
+    pageIntentHint = "thread";
+    matchedRule = "github issue/discussion URL";
+  } else if (hostFamily === "stackoverflow" && /\/questions\/\d+/.test(pathname)) {
+    pageIntentHint = "thread";
+    matchedRule = "stackoverflow question URL";
+  } else if (pathname.endsWith(".pdf")) {
+    pageIntentHint = "docs";
+    matchedRule = "pdf URL";
+  }
+
+  return {
+    sourceKind: pathname.endsWith(".pdf") ? "pdf" : "html",
+    hostFamily,
+    pageIntentHint,
+    matchedRule,
+  };
+}
+
+async function getPayloadForTab(tab) {
+  try {
+    return await getPagePayload(tab.id);
+  } catch (error) {
+    const sourceHints = sourceHintsForTab(tab);
+    if (sourceHints.sourceKind === "pdf") {
+      return {
+        url: tab.url,
+        title: tab.title || "PDF document",
+        sourceHints,
+      };
+    }
+
+    throw error;
+  }
+}
+
 function renderAnalysis(data) {
   const extractionNotes = data.debug?.extraction?.notes ?? [];
   const classifierNotes = data.debug?.reasons ?? [];
@@ -193,6 +260,8 @@ async function generate(mode) {
         pageType: state.analysis.pageType,
         cleanedText: state.analysis.cleanedText,
         headings: state.analysis.headings,
+        sourceHints: state.analysis.sourceHints,
+        threadModel: state.analysis.threadModel,
         debug: state.analysis.debug?.extraction,
         mode: mode === "podcast" ? undefined : mode,
         responseType: "json",
@@ -235,7 +304,7 @@ async function initialize() {
     throw new Error("AudioLayer cannot inspect Chrome internal pages.");
   }
 
-  state.payload = await getPagePayload(state.tab.id);
+  state.payload = await getPayloadForTab(state.tab);
   await classifyPage();
 }
 

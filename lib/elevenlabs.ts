@@ -8,7 +8,8 @@ const voicesCache = new MemoryCache<VoiceSummary[]>(10 * 60 * 1000);
 const DEFAULT_TTS_MODEL = "eleven_flash_v2_5";
 const DEFAULT_DIALOGUE_MODEL = "eleven_v3";
 const MAX_TTS_CHARACTERS = 16_000;
-const MAX_DIALOGUE_CHARACTERS = 1_900;
+const MAX_DIALOGUE_CHARACTERS = 7_200;
+const MAX_DIALOGUE_LINE_CHARACTERS = 560;
 
 let client: ElevenLabsClient | null = null;
 
@@ -176,7 +177,11 @@ export async function generatePodcastDialogue(params: {
   const hostB = readVoiceId("ELEVENLABS_VOICE_HOST_B");
 
   const inputs = params.script.turns.map((turn) => ({
-    text: trimText(turn.cue ? `${turn.cue} ${turn.text}` : turn.text, 320, "Podcast line"),
+    text: trimText(
+      turn.cue ? `${turn.cue} ${turn.text}` : turn.text,
+      MAX_DIALOGUE_LINE_CHARACTERS,
+      "Podcast line",
+    ),
     voiceId: turn.speaker === "Host A" ? hostA : hostB,
   }));
 

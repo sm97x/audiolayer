@@ -1,5 +1,5 @@
 import { JSDOM } from "jsdom";
-import type { CleanedPage, ExtractionDebug, PageType } from "@/lib/types";
+import type { CleanedPage, ExtractionDebug, PageType, SourceHints, ThreadModel } from "@/lib/types";
 
 const BASE_JUNK_SELECTORS = [
   "script",
@@ -353,6 +353,8 @@ export function buildCleanedPage(params: {
   textBlocks: string[];
   headings: string[];
   byline?: string;
+  sourceHints?: SourceHints;
+  threadModel?: ThreadModel;
   cleanup: CleanupResult;
   notes?: string[];
 }): CleanedPage {
@@ -374,6 +376,8 @@ export function buildCleanedPage(params: {
     estimatedReadingTime: estimateReadingTime(combined),
     headings: params.headings,
     byline: params.byline,
+    sourceHints: params.sourceHints,
+    threadModel: params.threadModel,
     debug,
   };
 }

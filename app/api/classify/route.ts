@@ -23,18 +23,13 @@ export async function POST(request: Request): Promise<Response> {
       return jsonWithCors({ error: "Missing url in request body." }, { status: 400 });
     }
 
-    if (!body.html && !body.textContent) {
-      return jsonWithCors(
-        { error: "Provide either html or textContent for classification." },
-        { status: 400 },
-      );
-    }
-
-    const result = classifyAndExtractPage({
+    const result = await classifyAndExtractPage({
       url: body.url,
       html: body.html,
       textContent: body.textContent,
       title: body.title,
+      selectedText: body.selectedText,
+      sourceHints: body.sourceHints,
     });
 
     const publicResponse = {
@@ -42,6 +37,8 @@ export async function POST(request: Request): Promise<Response> {
       pageType: result.classification.pageType,
       cleanedText: result.cleaned.cleanedText,
       headings: result.cleaned.headings,
+      sourceHints: result.classification.sourceHints,
+      threadModel: result.cleaned.threadModel,
       summaryPreview: result.summary.shortSummary,
       takeaways: result.summary.takeaways,
       whyThisMatters: result.summary.whyThisMatters,
@@ -57,6 +54,7 @@ export async function POST(request: Request): Promise<Response> {
         confidence: result.classification.confidence,
         reasons: result.classification.reasons,
         scores: result.classification.scores,
+        sourceHints: result.classification.sourceHints,
         cleanedCharCount: result.cleaned.charCount,
         estimatedReadingTime: result.cleaned.estimatedReadingTime,
         extraction: result.cleaned.debug,

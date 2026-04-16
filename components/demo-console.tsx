@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DEMO_SAMPLES } from "@/lib/demo-samples";
-import type { PageType } from "@/lib/types";
+import type { PageType, SourceHints, ThreadModel } from "@/lib/types";
 
 export type GenerationMode = "brief" | "read" | "podcast";
 
@@ -11,6 +11,8 @@ interface ClassificationResponse {
   pageType: PageType;
   cleanedText: string;
   headings: string[];
+  sourceHints?: SourceHints;
+  threadModel?: ThreadModel;
   summaryPreview: string;
   takeaways: string[];
   whyThisMatters: string;
@@ -202,6 +204,8 @@ export function DemoConsole() {
           pageType: classification.pageType,
           cleanedText: classification.cleanedText,
           headings: classification.headings,
+          sourceHints: classification.sourceHints,
+          threadModel: classification.threadModel,
           debug: classification.debug?.extraction,
           mode: mode === "podcast" ? undefined : mode,
           responseType: "json",
