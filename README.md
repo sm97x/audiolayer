@@ -91,6 +91,18 @@ Open:
 
 Use `/demo` first to confirm your ElevenLabs key and voice IDs work.
 
+## Install the Chrome extension
+
+The live web app is deployed at [https://audiolayer-delta.vercel.app](https://audiolayer-delta.vercel.app). Once the extension zip is installed, you can try AudioLayer without running this repo locally.
+
+1. Download the latest `audiolayer-extension.zip` from GitHub Releases.
+2. Unzip the file.
+3. Open `chrome://extensions` in Chrome.
+4. Enable Developer mode.
+5. Click `Load unpacked`.
+6. Select the unzipped `extension` folder.
+7. Open the extension settings and confirm the backend URL is `https://audiolayer-delta.vercel.app`.
+
 ## Load the Extension
 
 1. Run the web app with `npm run dev`.

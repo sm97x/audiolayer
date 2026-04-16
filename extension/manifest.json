@@ -6,6 +6,7 @@
   "permissions": ["storage", "activeTab", "tabs"],
   "host_permissions": [
     "<all_urls>",
+    "https://audiolayer-delta.vercel.app/*",
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*"
   ],

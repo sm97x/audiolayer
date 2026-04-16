@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_BASE_URL = "http://localhost:3000";
+const DEFAULT_BACKEND_BASE_URL = "https://audiolayer-delta.vercel.app";
 
 const input = document.getElementById("backendBaseUrl");
 const status = document.getElementById("status");
@@ -42,5 +42,5 @@ saveBtn.addEventListener("click", async () => {
 
 restore().catch(() => {
   input.value = DEFAULT_BACKEND_BASE_URL;
-  setStatus("Using the default local backend.");
+  setStatus("Using the default AudioLayer app.");
 });

@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_BASE_URL = "http://localhost:3000";
+const DEFAULT_BACKEND_BASE_URL = "https://audiolayer-delta.vercel.app";
 
 chrome.runtime.onInstalled.addListener(async () => {
   const current = await chrome.storage.sync.get("backendBaseUrl");
