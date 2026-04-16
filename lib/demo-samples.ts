@@ -14,23 +14,23 @@ export const DEMO_SAMPLES: DemoSample[] = [
     id: "article",
     label: "Article",
     pageType: "article",
-    title: "Why the next audio product is context-aware, not generic narration",
+    title: "Why better web audio starts with the page",
     blurb:
-      "A magazine-style article about turning pages into audio experiences that understand structure, signal, and pacing.",
+      "A short article about turning busy webpages into something worth listening to.",
     html: `
       <article class="article-body">
         <header>
-          <h1>Why the next audio product is context-aware, not generic narration</h1>
-          <p class="dek">Voice interfaces feel magical when they understand what matters, what can be skipped, and how a page should sound.</p>
+          <h1>Why better web audio starts with the page</h1>
+          <p class="dek">Voice interfaces work best when they know what matters and what can be skipped.</p>
           <p class="byline">By Maya Fernandez</p>
         </header>
-        <p>Most of the web is still designed to be scanned with your eyes. A literal read-aloud experience inherits every awkward part of that design: navigation chrome, repetitive calls to action, sidebars, caption fragments, and paragraphs that were written to be skimmed rather than heard. The result is technically functional audio that still feels like work.</p>
-        <p>The more interesting product direction is adaptive audio. That means detecting whether a page is an article, documentation, or a discussion thread, then restructuring the content before a single second of audio is generated. A good voice layer should know that an article needs a summary-first path, docs need clearer section scaffolding, and a thread should preserve the original post plus only the strongest replies.</p>
-        <h2>The page itself is the prompt</h2>
-        <p>In practice, the web page already contains most of the cues a voice system needs. Heading density, repeated reply blocks, code fences, side navigation, and timestamp patterns all tell you what kind of page you are on. Those cues are deterministic, inspectable, and fast. They also make the product easier to trust because the user can understand why the system made a choice.</p>
-        <p>That shift matters for product quality. Once the experience is grounded in structure, the audio can become much more intentional. A brief mode can front-load the thesis and consequences. A read mode can keep the body intact but remove the noise. A two-host podcast mode can turn dense pages into a short recap that feels like a smart colleague explaining what is worth your time.</p>
-        <h2>Less content, more signal</h2>
-        <p>Users do not want a blind conversion of the DOM into sound. They want the useful layer that sits on top of the page. If the experience gets the page type right, trims the fluff, and chooses a voice that matches the material, the audio version starts to feel like a product rather than a utility.</p>
+        <p>Most webpages are written for people who are looking at a screen. A straight read-aloud experience carries over menus, repeated calls to action, sidebars, captions, and paragraphs that were meant to be skimmed. The result may be audio, but it still feels like work.</p>
+        <p>Better web audio starts by asking what kind of page this is. An article needs the main point and supporting detail. A docs page needs the steps in order. A thread needs the original post and the replies that add something new.</p>
+        <h2>The page already has clues</h2>
+        <p>Headings, paragraphs, lists, code blocks, and repeated reply sections all help show how the page should be heard. When those signals are used well, the audio feels calmer and more useful.</p>
+        <p>That shift matters for product quality. A brief can front-load the point. A full read can keep the body intact without the clutter. A podcast recap can turn a dense page into a short conversation that is easier to follow.</p>
+        <h2>Less noise, more signal</h2>
+        <p>People do not want every part of the page converted into sound. They want the useful layer above it: the story, the steps, or the discussion without the parts that were never meant to be heard.</p>
         <footer>Related stories and newsletter signup</footer>
       </article>
     `,
@@ -41,7 +41,7 @@ export const DEMO_SAMPLES: DemoSample[] = [
     pageType: "docs",
     title: "Render endpoint quickstart",
     blurb:
-      "A documentation page with section headings, lists, and code blocks so the cleaner can turn it into a listenable version.",
+      "A documentation page with headings, lists, and code examples.",
     html: `
       <main class="docs-content">
         <nav class="sidebar">On this page</nav>
@@ -80,7 +80,7 @@ export const DEMO_SAMPLES: DemoSample[] = [
     pageType: "thread",
     title: "Founder thread: would you listen to docs on your commute?",
     blurb:
-      "A discussion thread with an original post and layered replies that should be compressed into the original point plus the strongest responses.",
+      "A discussion thread with an original post and a few useful replies.",
     html: `
       <main class="discussion-thread">
         <section class="thread-header">
@@ -102,7 +102,7 @@ export const DEMO_SAMPLES: DemoSample[] = [
           <article class="reply">
             <p class="author">@omar</p>
             <time>44 minutes ago</time>
-            <p>Threads are where this gets interesting. The original post usually matters, but most replies are repetitive. I'd want the top replies, not every single reaction, and I would want the system to tell me what fluff it intentionally removed.</p>
+            <p>Threads are where this gets interesting. The original post usually matters, but most replies are repetitive. I'd want the top replies, not every single reaction.</p>
           </article>
         </section>
         <aside class="related">Related communities and recommended users</aside>

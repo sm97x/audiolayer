@@ -15,8 +15,8 @@ const displayFont = Space_Grotesk({
 export const metadata: Metadata = {
   title: "AudioLayer | The voice layer for the internet",
   description:
-    "AudioLayer is a portfolio-quality prototype that restructures web pages into adaptive audio using deterministic page understanding and ElevenLabs voices.",
-  metadataBase: new URL("https://audiolayer.local"),
+    "AudioLayer turns articles, docs, and threads into summaries, clean narration, and short podcast-style recaps.",
+  metadataBase: new URL("https://audiolayer.app"),
 };
 
 export default function RootLayout({

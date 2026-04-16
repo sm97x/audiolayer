@@ -3,12 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AudioLayer Options</title>
+    <title>AudioLayer Settings</title>
     <style>
+      :root {
+        --background: #f4f1ea;
+        --foreground: #111111;
+        --panel: rgba(255, 255, 255, 0.86);
+        --muted: #60645f;
+        --border: rgba(17, 17, 17, 0.08);
+        --accent: #61716a;
+        --accent-soft: rgba(97, 113, 106, 0.12);
+        --danger: #9b1c1c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
-        background: #f4f1ea;
-        color: #111111;
+        background:
+          radial-gradient(circle at top left, rgba(97, 113, 106, 0.08), transparent 20rem),
+          var(--background);
+        color: var(--foreground);
         font-family: "Segoe UI", sans-serif;
       }
 
@@ -19,27 +36,45 @@
       }
 
       .card {
-        background: rgba(255, 255, 255, 0.86);
-        border: 1px solid rgba(17, 17, 17, 0.08);
+        background: var(--panel);
+        border: 1px solid var(--border);
         border-radius: 24px;
         padding: 24px;
         box-shadow: 0 18px 40px rgba(17, 17, 17, 0.06);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 999px;
+        background: var(--foreground);
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
       }
 
       .eyebrow {
         font-size: 12px;
         letter-spacing: 0.16em;
         text-transform: uppercase;
-        color: #60645f;
+        color: var(--muted);
       }
 
       h1 {
-        margin: 12px 0 8px;
+        margin: 18px 0 8px;
         font-size: 32px;
       }
 
       p {
-        color: #60645f;
+        color: var(--muted);
         line-height: 1.7;
       }
 
@@ -54,7 +89,7 @@
         width: 100%;
         margin-top: 10px;
         padding: 14px 16px;
-        border: 1px solid rgba(17, 17, 17, 0.08);
+        border: 1px solid var(--border);
         border-radius: 16px;
         background: white;
         font-size: 14px;
@@ -64,7 +99,7 @@
         margin-top: 18px;
         border: none;
         border-radius: 999px;
-        background: #111111;
+        background: var(--foreground);
         color: white;
         padding: 12px 18px;
         font-size: 14px;
@@ -74,22 +109,40 @@
 
       #status {
         margin-top: 14px;
-        color: #60645f;
+        color: var(--muted);
         font-size: 13px;
+      }
+
+      #status.error {
+        color: var(--danger);
+      }
+
+      code {
+        border-radius: 8px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        padding: 2px 6px;
       }
     </style>
   </head>
   <body>
     <main>
       <section class="card">
-        <div class="eyebrow">Extension options</div>
-        <h1>AudioLayer backend</h1>
+        <div class="brand">
+          <div class="mark">AL</div>
+          <div>
+            <div class="eyebrow">Settings</div>
+            <strong>AudioLayer</strong>
+          </div>
+        </div>
+
+        <h1>Connect the extension</h1>
         <p>
-          Point the extension at your local or deployed Next.js app. The default is
-          <code>http://localhost:3000</code>.
+          Point AudioLayer at your local or deployed Next.js app. For local testing,
+          use <code>http://localhost:3000</code>.
         </p>
 
-        <label for="backendBaseUrl">Backend base URL</label>
+        <label for="backendBaseUrl">Backend URL</label>
         <input id="backendBaseUrl" type="url" placeholder="http://localhost:3000" />
         <button id="saveBtn" type="button">Save settings</button>
         <div id="status"></div>

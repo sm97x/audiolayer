@@ -34,35 +34,23 @@ function clamp(value: number, min = 0, max = 1): number {
 }
 
 function overlap(tokens: string[], reference: Set<string>): number {
-  if (reference.size === 0 || tokens.length === 0) {
+  if (tokens.length === 0 || reference.size === 0) {
     return 0;
   }
 
-  const shared = tokens.filter((token) => reference.has(token)).length;
-  return shared / reference.size;
+  return tokens.filter((token) => reference.has(token)).length / reference.size;
 }
 
 function isLowValueAudioSentence(sentence: string, title: string): boolean {
   const comparable = normalizeComparable(sentence);
   const titleComparable = normalizeComparable(title);
 
-  if (!comparable || comparable === titleComparable) {
-    return true;
-  }
-
-  if (/^(published|updated|last updated)\s*\d/.test(comparable)) {
-    return true;
-  }
-
-  if (/^\d{1,2}\s+[a-z]+\s+\d{4}\s+\d{1,2}\s+\d{2}/.test(comparable)) {
-    return true;
-  }
-
-  if (/^(watch|media caption|image caption|video caption)\b/i.test(sentence)) {
-    return true;
-  }
-
-  return false;
+  return !comparable ||
+    comparable === titleComparable ||
+    /^(published|updated|last updated)\s*\d/.test(comparable) ||
+    /^\d{1,2}\s+[a-z]+\s+\d{4}\b/.test(comparable) ||
+    /^\d{1,2}:\d{2}$/.test(comparable) ||
+    /^(watch|listen|media caption|image caption|video caption)\b/i.test(sentence);
 }
 
 function sentenceRecordsFromDocument(document: AudioDocument): SentenceRecord[] {
@@ -83,44 +71,34 @@ function sentenceRecordsFromDocument(document: AudioDocument): SentenceRecord[] 
 
 function buildWhyThisMatters(page: CleanedPage): string {
   if (page.pageType === "docs") {
-    return "Why this matters: it turns the essential steps and constraints into something you can absorb away from the screen.";
+    return "It gives you the path through the task before you go back for exact code or settings.";
   }
 
   if (page.pageType === "thread") {
-    return "Why this matters: it keeps the original point and the strongest replies without forcing you through the repetitive thread mechanics.";
+    return "It keeps the original point and the replies that add the most signal.";
   }
 
-  return "Why this matters: it pulls the central claim, supporting evidence, and payoff into a version that is useful in under two minutes.";
+  return "It keeps the main point and the important context in a short listen.";
 }
 
-function stripExtractiveAttribution(text: string): string {
+function stripExtractiveNoise(text: string): string {
   return normalizeAudioText(text)
+    .replace(/^Bullet:\s*/i, "")
+    .replace(/^Original post\.\s*/i, "")
+    .replace(/^Top replies\.\s*/i, "")
+    .replace(/^Reply\s+\d+\.\s*/i, "")
     .replace(/\s+in a statement published by [^.]+/gi, "")
-    .replace(/,\s*(?:confirmed|said|says)\s+[^.]{2,120}$/i, ".")
-    .replace(/\s+"?(?:confirmed|said|says)\s+[^.]{2,120}$/i, ".")
+    .replace(/,\s*(?:confirmed|said|says|told|added)\s+[^.]{2,120}$/i, ".")
     .replace(/\bhas confirmed\b/gi, "says")
-    .replace(/\s+Why this matters:.+$/i, ".")
     .replace(/^["'\u201c\u201d](.+)["'\u201c\u201d]$/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function isMediaOrMetadataSentence(sentence: string, page: CleanedPage): boolean {
-  return isLowValueAudioSentence(sentence, page.title) ||
-    /^by\s*[A-Z][A-Za-z .,'&-]{2,160}\.?$/i.test(sentence) ||
-    /^\d{1,2}:\d{2}$/.test(sentence) ||
-    /^(watch|media caption|image caption|video caption)\b/i.test(sentence);
-}
-
 function cleanBriefSentence(sentence: string, page: CleanedPage): string | null {
-  let cleaned = stripExtractiveAttribution(sentence)
-    .replace(/^Bullet:\s*/i, "")
-    .replace(/^Original post\.\s*/i, "")
-    .replace(/^Top replies\.\s*/i, "")
-    .replace(/^Reply\s+\d+\.\s*/i, "")
-    .trim();
+  const cleaned = stripExtractiveNoise(sentence);
 
-  if (!cleaned || isMediaOrMetadataSentence(cleaned, page)) {
+  if (!cleaned || isLowValueAudioSentence(cleaned, page.title)) {
     return null;
   }
 
@@ -136,32 +114,33 @@ function cleanBriefSentence(sentence: string, page: CleanedPage): string | null 
     return null;
   }
 
-  cleaned = ensureSentence(cleaned);
-  return cleaned;
+  return ensureSentence(cleaned);
 }
 
 function sentenceSimilarity(left: string, right: string): number {
   return jaccardSimilarity(left, right);
 }
 
-function isCoreEventRepeat(left: string, right: string): boolean {
+function hasDuplicateMeaning(left: string, right: string, titleTokens: Set<string>): boolean {
   const leftComparable = normalizeComparable(left);
   const rightComparable = normalizeComparable(right);
-  const sharedTournamentAbsence =
-    leftComparable.includes("world cup") &&
-    rightComparable.includes("world cup") &&
-    /(injury|achilles|miss|absence|participat|season)/.test(leftComparable) &&
-    /(injury|achilles|miss|absence|participat|season)/.test(rightComparable);
-  const sharedCuts =
-    /\b(cut|cuts|jobs|staff|savings|budget)\b/.test(leftComparable) &&
-    /\b(cut|cuts|jobs|staff|savings|budget)\b/.test(rightComparable) &&
-    sentenceSimilarity(left, right) > 0.25;
-  const sharedInvestigationFinding =
-    /\b(investigation|undercover|fake|fabricated|asylum|adviser|law firm)\b/.test(leftComparable) &&
-    /\b(investigation|undercover|fake|fabricated|asylum|adviser|law firm)\b/.test(rightComparable) &&
-    sentenceSimilarity(left, right) > 0.5;
 
-  return sharedTournamentAbsence || sharedCuts || sharedInvestigationFinding;
+  if (leftComparable === rightComparable) {
+    return true;
+  }
+
+  if (
+    leftComparable.length > 80 &&
+    rightComparable.length > 80 &&
+    (leftComparable.includes(rightComparable) || rightComparable.includes(leftComparable))
+  ) {
+    return true;
+  }
+
+  const sharedTitleTokens = tokenize(left)
+    .filter((token) => titleTokens.has(token) && tokenize(right).includes(token)).length;
+
+  return sentenceSimilarity(left, right) > 0.46 || sharedTitleTokens >= 4;
 }
 
 function buildBriefCandidates(
@@ -170,9 +149,9 @@ function buildBriefCandidates(
   document: AudioDocument,
 ): BriefCandidate[] {
   const rawCandidates = [
-    ...summary.selectedSentences.map((sentence) => ({ sentence, sourceBoost: 1.3 })),
-    ...summary.takeaways.map((sentence) => ({ sentence, sourceBoost: 1.1 })),
-    ...getNarratableSentences(document).map((sentence) => ({ sentence, sourceBoost: 0.7 })),
+    ...summary.selectedSentences.map((sentence) => ({ sentence, sourceBoost: 1.25 })),
+    ...summary.takeaways.map((sentence) => ({ sentence, sourceBoost: 1.05 })),
+    ...getNarratableSentences(document).map((sentence) => ({ sentence, sourceBoost: 0.75 })),
   ];
   const seen = new Set<string>();
   const candidates: BriefCandidate[] = [];
@@ -209,25 +188,25 @@ function rankBriefCandidates(
 
   return [...candidates].sort((left, right) => {
     const score = (candidate: BriefCandidate): number => {
-      const actionScore = /\b(says|said|confirmed|announced|will|would|could|has|have|is|are|plans?|expects?|needs?|shows?|found|reveals?)\b/i.test(
+      const actionScore = /\b(says|said|announced|found|reveals?|shows?|will|would|could|has|have|is|are|plans?|expects?)\b/i.test(
         candidate.sentence,
       )
         ? 0.7
         : 0;
-      const consequenceScore = /\b(because|therefore|means|could|may|expected|prevent|risk|impact|change|need|blow|pressure|evidence|response|claims?)\b/i.test(
+      const detailScore = /\b(because|including|evidence|figures?|data|response|denied|warned|risk|impact|means|percent|million|billion|next|expected|could|may)\b/i.test(
         candidate.sentence,
       )
         ? 0.55
         : 0;
       const positionScore = Math.max(0, 1 - candidate.position / Math.max(1, candidates.length));
-      const lengthPenalty = candidate.tokens.length > 38 ? 0.3 : candidate.tokens.length < 7 ? 0.4 : 0;
+      const lengthPenalty = candidate.tokens.length > 42 ? 0.35 : candidate.tokens.length < 7 ? 0.35 : 0;
 
       return (
         candidate.sourceBoost +
-        overlap(candidate.tokens, titleTokens) * 1.8 +
-        overlap(candidate.tokens, headingTokens) * 0.8 +
+        overlap(candidate.tokens, titleTokens) * 1.6 +
+        overlap(candidate.tokens, headingTokens) * 0.7 +
         actionScore +
-        consequenceScore +
+        detailScore +
         positionScore * 0.45 -
         lengthPenalty
       );
@@ -238,16 +217,16 @@ function rankBriefCandidates(
 }
 
 function selectUniqueBriefSentences(
+  page: CleanedPage,
   candidates: BriefCandidate[],
   maxSentences: number,
 ): string[] {
   const selected: string[] = [];
+  const titleTokens = new Set(tokenize(page.title));
 
   for (const candidate of candidates) {
-    const isDuplicate = selected.some(
-      (sentence) =>
-        sentenceSimilarity(sentence, candidate.sentence) > 0.42 ||
-        isCoreEventRepeat(sentence, candidate.sentence),
+    const isDuplicate = selected.some((sentence) =>
+      hasDuplicateMeaning(sentence, candidate.sentence, titleTokens),
     );
 
     if (isDuplicate) {
@@ -263,55 +242,19 @@ function selectUniqueBriefSentences(
   return selected;
 }
 
-function isInvestigativeArticle(page: CleanedPage, document: AudioDocument): boolean {
-  const text = `${page.title} ${getNarratableText(document)}`.toLowerCase();
-  return /\b(investigation|undercover|reporters?|evidence|law firms?|advisers?|asylum|home office)\b/.test(text) &&
-    /\b(found|reveals?|fake|fabricated|exposed|misuse|fraud|claims?)\b/.test(text);
-}
-
-function findCandidate(
+function findByPattern(
   candidates: BriefCandidate[],
-  pattern: RegExp,
   selected: string[],
+  page: CleanedPage,
+  pattern: RegExp,
 ): BriefCandidate | undefined {
+  const titleTokens = new Set(tokenize(page.title));
+
   return candidates.find(
     (candidate) =>
       pattern.test(candidate.sentence) &&
-      !selected.some(
-        (sentence) =>
-          sentenceSimilarity(sentence, candidate.sentence) > 0.42 ||
-          isCoreEventRepeat(sentence, candidate.sentence),
-      ),
+      !selected.some((sentence) => hasDuplicateMeaning(sentence, candidate.sentence, titleTokens)),
   );
-}
-
-function buildInvestigativeBrief(
-  page: CleanedPage,
-  summary: SummaryResult,
-  document: AudioDocument,
-): string[] {
-  const candidates = rankBriefCandidates(page, buildBriefCandidates(page, summary, document));
-  const selected: string[] = [];
-  const patterns = [
-    /\b(shadow industry|bbc has found|law firms?|advisers?).*\b(migrants?|pretend|asylum|claims?|stay in the UK)\b/i,
-    /\b(after gathering|reporters? posed|tip-offs|sent undercover|undercover reporters?)\b/i,
-    /\b(fabricated evidence|supporting letters|photographs|medical reports|charged up|fake claim|pretend)\b/i,
-    /\b(Home Office|full force of the law|regulation authority|suspended|denied|response|spokesperson)\b/i,
-    /\b(35 percent|100,000|statistics|2023|vast problem|scale|claims)\b/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = findCandidate(candidates, pattern, selected);
-    if (match) {
-      selected.push(match.sentence);
-    }
-  }
-
-  if (selected.length >= 3) {
-    return selected.slice(0, document.stats.isLongForm ? 5 : 4);
-  }
-
-  return selectUniqueBriefSentences(candidates, document.stats.isLongForm ? 4 : 3);
 }
 
 function buildArticleBrief(
@@ -319,29 +262,38 @@ function buildArticleBrief(
   summary: SummaryResult,
   document: AudioDocument,
 ): string[] {
-  if (isInvestigativeArticle(page, document)) {
-    return buildInvestigativeBrief(page, summary, document);
+  const ranked = rankBriefCandidates(page, buildBriefCandidates(page, summary, document));
+  const selected: string[] = [];
+  const maxSentences = document.stats.isLongForm ? 5 : 3;
+  const slots = [
+    /\b(says|said|announced|found|reveals?|shows?|will|has|have|is|are)\b/i,
+    /\b(after|because|including|evidence|reported|according|data|figures?|percent|million|billion|charged|cost|fees?)\b/i,
+    /\b(response|responded|denied|warned|criticised|officials?|company|government|spokesperson|regulator|court|police|lawyer|minister)\b/i,
+    /\b(next|expected|could|may|might|remain|unclear|review|investigation|change|plans?|future|timeline)\b/i,
+  ];
+
+  for (const pattern of slots) {
+    if (selected.length >= maxSentences) {
+      break;
+    }
+
+    const match = findByPattern(ranked, selected, page, pattern);
+    if (match) {
+      selected.push(match.sentence);
+    }
   }
 
-  const candidates = rankBriefCandidates(page, buildBriefCandidates(page, summary, document));
-  const lead =
-    candidates.find((candidate) =>
-      /\b(says|said|confirmed|announced|will|would|could|has|have|is|are|expects?|needs?|found|reveals?)\b/i.test(
-        candidate.sentence,
+  if (selected.length < maxSentences) {
+    selected.push(
+      ...selectUniqueBriefSentences(
+        page,
+        ranked.filter((candidate) => !selected.includes(candidate.sentence)),
+        maxSentences - selected.length,
       ),
-    ) ?? candidates[0];
-  const remaining = candidates.filter((candidate) => candidate !== lead);
-  const support = selectUniqueBriefSentences(remaining, document.stats.isLongForm ? 3 : 2);
+    );
+  }
 
-  return selectUniqueBriefSentences([
-    ...(lead ? [lead] : []),
-    ...support.map((sentence, index) => ({
-      sentence,
-      tokens: tokenize(sentence),
-      position: index,
-      sourceBoost: 0,
-    })),
-  ], document.stats.isLongForm ? 4 : 3);
+  return selected.slice(0, maxSentences);
 }
 
 function buildDocsBrief(
@@ -350,21 +302,29 @@ function buildDocsBrief(
   document: AudioDocument,
 ): string[] {
   const candidates = buildBriefCandidates(page, summary, document);
-  const firstBodySentence = candidates.find((candidate) => candidate.sentence.length >= 45);
-  const setupSentence = candidates.find((candidate) =>
-    /\b(start|setup|create|choose|send|request|response|endpoint|constraint|limit)\b/i.test(
+  const ranked = rankBriefCandidates(page, candidates);
+  const selected: BriefCandidate[] = [];
+  const purpose = ranked.find((candidate) => candidate.position <= 8 && candidate.sentence.length >= 45);
+  const setup = ranked.find((candidate) =>
+    /\b(start|setup|create|choose|install|configure|request|response|endpoint|constraint|limit)\b/i.test(
       candidate.sentence,
     ),
   );
-  const selected = selectUniqueBriefSentences(
-    [firstBodySentence, setupSentence].filter((candidate): candidate is BriefCandidate => Boolean(candidate)),
-    2,
-  );
 
-  return [
-    ...selected,
-    "Code examples and exact syntax are better viewed on the page; the audio version should give you the path through the task.",
-  ].slice(0, 3);
+  if (purpose) {
+    selected.push(purpose);
+  }
+
+  if (setup && setup !== purpose) {
+    selected.push(setup);
+  }
+
+  const brief = selectUniqueBriefSentences(page, selected.length ? selected : ranked, 2);
+  const hasCode = getNarratableBlocks(document).some((block) => block.kind === "code");
+
+  return hasCode
+    ? [...brief, "Code examples are better checked on the page; the audio version is best for the flow of the task."].slice(0, 3)
+    : brief.slice(0, 3);
 }
 
 function blockSentences(block: AudioBlock, page: CleanedPage): BriefCandidate[] {
@@ -403,52 +363,59 @@ function buildThreadBrief(
     target.push(...blockSentences(block, page));
   });
 
-  const originalCandidate = originalSentences.find((candidate) => candidate.sentence.length >= 45);
+  const original = originalSentences.find((candidate) => candidate.sentence.length >= 45);
   const originalDuplicateWindow = originalSentences.slice(0, 3);
-  const repeatsOriginalSection = (sentence: string): boolean =>
-    originalDuplicateWindow.some(
-      (candidate) =>
-        sentenceSimilarity(candidate.sentence, sentence) > 0.42 ||
-        normalizeComparable(candidate.sentence) === normalizeComparable(sentence),
-    );
-  const replyCandidate = replySentences.find(
-    (candidate) =>
-      candidate.sentence.length >= 45 &&
-      !repeatsOriginalSection(candidate.sentence) &&
-      (!originalCandidate ||
-        (sentenceSimilarity(originalCandidate.sentence, candidate.sentence) <= 0.42 &&
-          !isCoreEventRepeat(originalCandidate.sentence, candidate.sentence))),
-  );
-  const sectionBased = selectUniqueBriefSentences(
-    [originalCandidate, replyCandidate].filter((candidate): candidate is BriefCandidate => Boolean(candidate)),
-    2,
+  const reply = replySentences.find(
+    (candidate) => {
+      if (!original) {
+        return true;
+      }
+
+      const replyComparable = normalizeComparable(candidate.sentence);
+
+      return !originalDuplicateWindow.some((originalCandidate) => {
+        const originalComparable = normalizeComparable(originalCandidate.sentence);
+        return originalComparable === replyComparable ||
+          sentenceSimilarity(originalCandidate.sentence, candidate.sentence) > 0.8;
+      });
+    },
   );
 
-  if (sectionBased.length >= 2) {
-    return sectionBased;
+  if (original && reply) {
+    return [original.sentence, reply.sentence];
   }
 
-  const candidates = buildBriefCandidates(page, summary, document);
-  return selectUniqueBriefSentences(candidates, 2);
+  if (original) {
+    const fallbackReply = buildBriefCandidates(page, summary, document).find(
+      (candidate) => sentenceSimilarity(original.sentence, candidate.sentence) < 0.42,
+    );
+
+    return fallbackReply ? [original.sentence, fallbackReply.sentence] : [original.sentence];
+  }
+
+  if (reply) {
+    return [reply.sentence];
+  }
+
+  return selectUniqueBriefSentences(
+    page,
+    rankBriefCandidates(page, buildBriefCandidates(page, summary, document)),
+    2,
+  );
 }
 
 function buildBriefSentences(page: CleanedPage, summary: SummaryResult): string[] {
   const document = buildAudioDocument(page);
-  const sentences =
-    page.pageType === "docs"
-      ? buildDocsBrief(page, summary, document)
-      : page.pageType === "thread"
-        ? buildThreadBrief(page, summary, document)
-        : buildArticleBrief(page, summary, document);
 
-  if (sentences.length > 0) {
-    return sentences;
+  if (page.pageType === "docs") {
+    return buildDocsBrief(page, summary, document);
   }
 
-  return selectUniqueBriefSentences(
-    rankBriefCandidates(page, buildBriefCandidates(page, summary, document)),
-    3,
-  );
+  if (page.pageType === "thread") {
+    return buildThreadBrief(page, summary, document);
+  }
+
+  return buildArticleBrief(page, summary, document);
 }
 
 export function summarizePage(page: CleanedPage): SummaryResult {
@@ -486,7 +453,7 @@ export function summarizePage(page: CleanedPage): SummaryResult {
     const lexicalDiversity =
       record.tokens.length > 0 ? new Set(record.tokens).size / record.tokens.length : 0;
     const lengthBonus =
-      record.tokens.length >= 8 && record.tokens.length <= 34
+      record.tokens.length >= 8 && record.tokens.length <= 36
         ? 0.5
         : record.tokens.length < 6
           ? -0.35
@@ -495,10 +462,10 @@ export function summarizePage(page: CleanedPage): SummaryResult {
     return {
       ...record,
       score:
-        overlap(record.tokens, titleTokens) * 2.4 +
-        overlap(record.tokens, headingTokens) * 1.2 +
-        clamp(tfScore / 18) * 1.1 +
-        positionScore * 0.8 +
+        overlap(record.tokens, titleTokens) * 2.2 +
+        overlap(record.tokens, headingTokens) * 1 +
+        clamp(tfScore / 18) * 1 +
+        positionScore * 0.85 +
         lexicalDiversity * 0.4 +
         lengthBonus,
     } satisfies SentenceRecord;
@@ -523,7 +490,7 @@ export function summarizePage(page: CleanedPage): SummaryResult {
   }
 
   const ordered = selected.sort((left, right) => left.sentenceIndex - right.sentenceIndex);
-  const shortSummary = ordered.map((record) => record.sentence).join(" ");
+  const shortSummary = ordered.map((record) => record.sentence).join(" ") || page.title;
 
   const takeaways = ranked
     .filter((candidate) => candidate.sentence.length >= 45)

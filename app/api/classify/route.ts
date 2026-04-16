@@ -4,13 +4,20 @@ import type { PagePayload } from "@/lib/types";
 
 export const runtime = "nodejs";
 
+interface ClassifyRequestBody extends Partial<PagePayload> {
+  includeDebug?: boolean;
+}
+
 export async function OPTIONS(): Promise<Response> {
   return handleOptions();
 }
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const body = (await request.json()) as Partial<PagePayload>;
+    const body = (await request.json()) as ClassifyRequestBody;
+    const includeDebug =
+      body.includeDebug === true ||
+      new URL(request.url).searchParams.get("includeDebug") === "true";
 
     if (!body.url) {
       return jsonWithCors({ error: "Missing url in request body." }, { status: 400 });
@@ -30,20 +37,30 @@ export async function POST(request: Request): Promise<Response> {
       title: body.title,
     });
 
-    return jsonWithCors({
+    const publicResponse = {
       title: result.cleaned.title,
       pageType: result.classification.pageType,
-      confidence: result.classification.confidence,
-      reasons: result.classification.reasons,
-      scores: result.classification.scores,
       cleanedText: result.cleaned.cleanedText,
-      cleanedCharCount: result.cleaned.charCount,
-      estimatedReadingTime: result.cleaned.estimatedReadingTime,
       headings: result.cleaned.headings,
-      debug: result.cleaned.debug,
       summaryPreview: result.summary.shortSummary,
       takeaways: result.summary.takeaways,
       whyThisMatters: result.summary.whyThisMatters,
+    };
+
+    if (!includeDebug) {
+      return jsonWithCors(publicResponse);
+    }
+
+    return jsonWithCors({
+      ...publicResponse,
+      debug: {
+        confidence: result.classification.confidence,
+        reasons: result.classification.reasons,
+        scores: result.classification.scores,
+        cleanedCharCount: result.cleaned.charCount,
+        estimatedReadingTime: result.cleaned.estimatedReadingTime,
+        extraction: result.cleaned.debug,
+      },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown classification error.";

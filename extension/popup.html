@@ -9,7 +9,7 @@
   <body>
     <main class="popup-shell">
       <header class="topbar">
-        <div class="brand-mark">SL</div>
+        <div class="brand-mark">AL</div>
         <div>
           <div class="brand-name">AudioLayer</div>
           <div class="brand-tag">The voice layer for the internet</div>
@@ -18,47 +18,51 @@
 
       <section class="meta-card">
         <div class="meta-row">
-          <span class="label">Detected page</span>
-          <span class="pill" id="pageType">Waiting</span>
+          <span class="label">Page type</span>
+          <span class="pill" id="pageType">Checking...</span>
         </div>
-        <h1 id="title">Loading the active page…</h1>
-        <div class="stats">
-          <div class="stat">
-            <span class="label">Confidence</span>
-            <strong id="confidence">--</strong>
-          </div>
-          <div class="stat">
-            <span class="label">Cleaned chars</span>
-            <strong id="charCount">--</strong>
-          </div>
-        </div>
+        <h1 id="title">Loading the active page...</h1>
       </section>
 
-      <div class="button-grid">
-        <button id="briefBtn">Brief me</button>
-        <button id="readBtn" class="secondary">Read it</button>
-        <button id="podcastBtn" class="secondary">Podcast mode</button>
+      <div class="button-grid" aria-busy="false">
+        <button id="briefBtn" data-mode="brief">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Brief me</span>
+        </button>
+        <button id="readBtn" class="secondary" data-mode="read">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Read it</span>
+        </button>
+        <button id="podcastBtn" class="secondary" data-mode="podcast">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Podcast mode</span>
+        </button>
       </div>
 
-      <div id="status" class="status">Inspecting the current tab.</div>
+      <div id="status" class="status" role="status" aria-live="polite">Checking page...</div>
 
-      <section class="audio-card">
-        <audio id="player" controls class="player"></audio>
+      <section id="errorCard" class="error-card" hidden>
+        <div id="errorMessage">Something went wrong.</div>
+        <button id="settingsBtn" class="text-button" type="button">Open settings</button>
       </section>
 
-      <details class="debug-panel">
-        <summary>Transcript and debug</summary>
-        <div class="panel-block">
-          <div class="label">Transcript</div>
-          <pre id="transcript" class="transcript">Audio output will appear here.</pre>
-        </div>
-        <div class="panel-block">
-          <div class="label">Heuristics</div>
-          <div id="reasons" class="body-copy">Classification reasons will appear here.</div>
-        </div>
+      <section class="audio-card">
+        <div id="emptyState" class="empty-state">Choose a mode to hear this page.</div>
+        <audio id="player" controls class="player" hidden></audio>
+      </section>
+
+      <details class="transcript-panel" open>
+        <summary>Transcript</summary>
+        <pre id="transcript" class="transcript">The transcript will appear here after you choose a mode.</pre>
+      </details>
+
+      <details class="developer-panel">
+        <summary>Developer details</summary>
+        <div id="developerDetails" class="body-copy">Page notes will appear here.</div>
       </details>
     </main>
 
+    <script src="popup-state.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

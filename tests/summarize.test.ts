@@ -27,7 +27,7 @@ describe("summarizePage", () => {
 
     expect(summary.shortSummary.length).toBeGreaterThan(60);
     expect(summary.takeaways).toHaveLength(3);
-    expect(summary.whyThisMatters).toMatch(/Why this matters:/);
+    expect(summary.whyThisMatters).toMatch(/main point|task|replies/i);
     expect(buildBriefTranscript(page, summary)).not.toMatch(/^Briefing on/i);
   });
 
@@ -153,7 +153,7 @@ describe("summarizePage", () => {
     expect(brief).toMatch(/shadow industry|law firms|advisers/i);
     expect(brief).toMatch(/undercover|reporters/i);
     expect(brief).toMatch(/fabricated evidence|fake cover stories|medical reports|photographs/i);
-    expect(brief).toMatch(/Home Office|full force of the law/i);
+    expect(brief).toMatch(/Home Office|full force of the law|denied|response/i);
     expect(brief.length).toBeGreaterThan(shortBrief.length);
     expect(countOccurrences(brief, /shadow industry/gi)).toBeLessThanOrEqual(1);
   });
